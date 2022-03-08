@@ -88,13 +88,13 @@ def inv_hom_mat(ang_list, trans):#trans(3,1)
 xx,yy,zz = np.array(np.meshgrid(np.arange(0, 3.3, 0.5), #2 x
                       np.arange(0, 3.3, 0.5), #1 y
                       np.arange(1, 3, 1))) #3 z
-print(np.arange(1, 3, 1))
+
 # [[x][y][z]] 3x?
 testp_pos = np.stack((np.ndarray.flatten(xx),np.ndarray.flatten(yy),np.ndarray.flatten(zz)),0)                     
 kpos = testp_pos[0].size # num of test position
 print(kpos,'kpos')
 # [[rotx][roty][rotz]] 3x?
-testp_rot = np.stack((np.deg2rad(np.arange(0,30,15)),np.zeros(2),np.zeros(2)),0)
+testp_rot = np.stack((np.deg2rad(np.arange(180,270,15)),np.zeros(np.arange(180,270,15).size),np.zeros(np.arange(180,270,15).size)),0)
 krot = testp_rot[0].size # num of test rotate orientation
 print(krot,'krot')
 # =======================================================================
@@ -105,13 +105,16 @@ pd_pos = (np.zeros((3,pd_num)))
 alpha = np.deg2rad(20)#傾角
 beta = np.deg2rad(360/pd_num)#方位角
 pd_ori_ang = np.stack( (alpha*np.ones(5),(beta*np.arange(1,pd_num+1))),0 )
-# pd_ori_car = ori_ang2cart(pd_ori_ang)
+pd_ori_car = ori_ang2cart(pd_ori_ang)
 
+#pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
+pd_para = [2,1,1] #[0:M, 1:area, 2:respons]
 
 led_num = 2
 led_pos = form([[0,0,0],[1,0,0]])
 led_ori_ang = np.array([np.deg2rad([0,30]),[0,0]])
-# led_ori_car = ori_ang2cart(pd_ori_ang)
+led_ori_car = ori_ang2cart(pd_ori_ang)
+led_para = [2,100]#led_para[0:m, 1:optical power]
 
 # =======================================================================
 # transfer led coor to pd coor
@@ -159,18 +162,96 @@ def global_testp_trans(pos , testp_pos):
 #先把led_num個pos位置經過krot次旋轉，變成krotx3xled_num的testpoints，再將所有testpoints平移到testp_pos上
 glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
 # print(glob_led_pos,'me')
-#(k2,3,led_num) 
+#(krot,3,led_num) 
 glob_led_ori = global_testp_after_rot(ori_ang2cart(led_ori_ang),testp_rot)
 # print(glob_led_ori.shape,'me')
 
 
 # =======================================================================
 # estimate d,theta,psi
+def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num):
+    dis = np.zeros((krot,kpos,led_num,pd_num))
+    in_ang = np.zeros((krot,kpos,led_num,pd_num))
+    out_ang = np.zeros((krot,kpos,led_num,pd_num))
 
-print(glob_led_pos.shape)
-print(np.tile(glob_led_pos,(pd_num,1,1,1,1)).shape)
+    pos_delta = np.zeros((krot,kpos,led_num,pd_num,3)) #led-pd: pd pointint to led
+
+    for pd in range(pd_num):
+        for led in range(led_num):
+            # (x-x)^2 sqrt
+            # glob_led_pos[:,:,:,led]  krotxkposx3
+            pd_extend = np.tile(pd_pos,(krot,kpos,1,1))
+            pos_delta[:,:,led,pd,:] = glob_led_pos[:,:,:,led]-pd_extend[:,:,:,pd]#krotxkposx3
+            dis[:,:,led,pd] = np.sqrt(np.square(pos_delta[:,:,led,pd,:]).sum(axis=2))
+            # in_ang[:,:,led,pd]= 
+
+    for pd in range(pd_num):
+        # 計算該pd與all testpoints的角度
+        in_ang[:,:,:,pd] = pos_delta[:,:,:,pd,0]*pd_ori_car[0,pd]+pos_delta[:,:,:,pd,1]*pd_ori_car[1,pd]+pos_delta[:,:,:,pd,2]*pd_ori_car[2,pd]
+
+        # krot kpos led pd  #glob_led_ori(krot,3,led_num) 
+        # out_ang[:,:,:,pd] = -pos_delta[:,:,:,pd,0]* glob_led_ori[,0,] - pos_delta[:,:,:,pd,1]*   -pos_delta[:,:,:,pd,2]*
+    for led in range(led_num):
+        for r in range(krot):
+            out_ang[r,:,led,:] = -pos_delta[r,:,led,:,0]*glob_led_ori[r,0,led] - pos_delta[r,:,led,:,1]*glob_led_ori[r,1,led] - pos_delta[r,:,led,:,2]*glob_led_ori[r,2,led]
+    in_ang = np.arccos(np.divide(in_ang,dis))
+    out_ang = np.arccos(np.divide(out_ang,dis))
+    
+    return dis,in_ang,out_ang
+
+# krot x kpos x led x pd
+dis,in_ang,out_ang = cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num)
+
+
+'''check if d,in_ang,out_ang is right'''
+'''
+#krot2 kpos98 led2 pd5
+a,b,c,d = 2,50,1,2
+
+dis_cal,in_cal,out_cal = dis[a,b,c,d],in_ang[a,b,c,d],out_ang[a,b,c,d]
+
+dis_real = np.sqrt(np.sum(np.square(glob_led_pos[a,b,:,c]-pd_pos[:,d])))
+in_real = np.arccos(np.dot(glob_led_pos[a,b,:,c]-pd_pos[:,d],pd_ori_car[:,d])/dis_real)
+out_real = np.arccos( np.dot( -glob_led_pos[a,b,:,c]+pd_pos[:,d],glob_led_ori[a,:,c] ) /dis_real )
+print(dis_cal==dis_real)
+print(in_cal==in_real)
+print(out_cal==out_real)
+# print(np.rad2deg(in_cal),np.rad2deg(in_real))
+# print(np.rad2deg(out_cal),np.rad2deg(out_real))
+'''
+
 
 print('hi')
+
+# =======================================================================
+# calculate strendth 
+
+# # dis,in_ang,out_ang   [krot x kpos x led x pd]
+
+
+def cal_strength_current(dis,in_ang,out_ang,pd_para,led_para):
+    # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
+    # dis,in_ang,out_ang   [krot x kpos x led x pd]
+    # strength [krot x kpos x led x pd]
+    # strength = np.zeros((krot,kpos,led_num,pd_num))
+    led_m, area, respon = pd_para
+    pd_m , power= led_para
+    k = respon*power*(led_m+1)*area /(2*np.pi)
+    return k*np.divide( np.multiply(\
+                            np.power(np.cos(in_ang),pd_m),\
+                            np.power(np.cos(out_ang),led_m)),\
+                        np.square(dis))
+    
+print(cal_strength_current(dis,in_ang,out_ang,pd_para,led_para).shape)
+
+# =======================================================================
+# add noise
+
+# =======================================================================
+# calculate pos
+
+# =======================================================================
+# calculate error
 
 
 
@@ -243,7 +324,4 @@ ax.set_title("config")
 
 
 
-# calculate strendth (mxn)
 
-# calculate pos
-# calculate error
