@@ -85,17 +85,18 @@ def inv_hom_mat(ang_list, trans):#trans(3,1)
 # =======================================================================
 # Scenario
 
-xx,yy,zz = np.array(np.meshgrid(np.arange(0.3, 3.3, 2), #2 x
-                      np.arange(5, 8.3, 0.3), #1 y
-                      np.arange(10.3, 13.3, 1))) #3 z
+xx,yy,zz = np.array(np.meshgrid(np.arange(0, 3.3, 0.5), #2 x
+                      np.arange(0, 3.3, 0.5), #1 y
+                      np.arange(1, 3, 1))) #3 z
+print(np.arange(1, 3, 1))
 # [[x][y][z]] 3x?
 testp_pos = np.stack((np.ndarray.flatten(xx),np.ndarray.flatten(yy),np.ndarray.flatten(zz)),0)                     
 kpos = testp_pos[0].size # num of test position
+print(kpos,'kpos')
 # [[rotx][roty][rotz]] 3x?
-print(np.arange(0,90,15).shape)
-testp_rot = np.stack((np.deg2rad(np.arange(0,90,15)),np.zeros(6),np.zeros(6)),0)
+testp_rot = np.stack((np.deg2rad(np.arange(0,30,15)),np.zeros(2),np.zeros(2)),0)
 krot = testp_rot[0].size # num of test rotate orientation
-# print(krot,'krot')
+print(krot,'krot')
 # =======================================================================
 # pd led: coor config
 # wrt 自己的coordinate
@@ -108,8 +109,8 @@ pd_ori_ang = np.stack( (alpha*np.ones(5),(beta*np.arange(1,pd_num+1))),0 )
 
 
 led_num = 2
-led_pos = form([[0,0,0],[0,0,1]])
-led_ori_ang = np.array([[0,0],np.deg2rad([0,30])])
+led_pos = form([[0,0,0],[1,0,0]])
+led_ori_ang = np.array([np.deg2rad([0,30]),[0,0]])
 # led_ori_car = ori_ang2cart(pd_ori_ang)
 
 # =======================================================================
@@ -137,39 +138,37 @@ def global_testp_after_rot(pos, testp_rot): #pos(or ori)[3x?] #testp_rot (krot,3
         out[i,:,:] = np.dot(rot_list[i],pos)
     return out # krotx3xm
 
+# out(krot,kpos,3,m) 
 def global_testp_trans(pos , testp_pos): 
     # pos [krotx3xm] or [3xm]
     # testp_pos [3xkpos]
     if len(pos.shape)==3:
-        # testp_pos[0].size # kpos
-        # pos.shape[0] #krot
-        # pos.shape[2] led_num
+        kpos = testp_pos[0].size # kpos
+        krot =  pos.shape[0] #krot
+        m =  pos.shape[2] #led_num
 
-        #out = np.zeros((krot,kpos,3,lednum))
-        out = np.zeros((pos.shape[0],testp_pos[0].size,3,pos.shape[2]))
-        # for kpos in range(testp_pos[0].size): #kpos
-        #     for m in range(pos.shape[2]): # led_num m
-        #         out[:,kpos,:,m] 
+        out = np.zeros((krot,kpos,3,m))
+        # out = np.zeros((pos.shape[0],testp_pos[0].size,3,pos.shape[2]))
+        for i in range(krot):
+            out[i,:,:,:]= np.tile(pos[i,:,:],(kpos,1,1))+np.tile(testp_pos,(m,1,1)).transpose(2,1,0)
+        return out
+    elif len(pos.shape)==2:
+        print('error in global_testp_trans')
 
-
-        print(pos,'pos')
-        print(out[:,1,:,1].shape)
-    # return [k2xk1x3xm]
-    pass 
-
-#(k2,3,led_num)
-glob_led_pos_rot = global_testp_after_rot(ori_ang2cart(led_ori_ang),testp_rot)
-glob_led_pos = global_testp_trans(glob_led_pos_rot, testp_pos)
-
+#(krot,kpos,3,m) 
+#先把led_num個pos位置經過krot次旋轉，變成krotx3xled_num的testpoints，再將所有testpoints平移到testp_pos上
+glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
+# print(glob_led_pos,'me')
 #(k2,3,led_num) 
-glob_led_ori = global_testp_after_rot(ori_ang2cart(pd_ori_ang),testp_rot)
+glob_led_ori = global_testp_after_rot(ori_ang2cart(led_ori_ang),testp_rot)
+# print(glob_led_ori.shape,'me')
 
-# print(global_testp_after_rot(led_pos,testp_rot))
-# print(testp_pos.shape)
 
-# print(testp_pos)
-# print(testp_rot.shape)
+# =======================================================================
+# estimate d,theta,psi
 
+print(glob_led_pos.shape)
+print(np.tile(glob_led_pos,(pd_num,1,1,1,1)).shape)
 
 print('hi')
 
@@ -181,25 +180,41 @@ ax = fig = plt.figure().add_subplot(projection='3d')
 
 # px,py,pz為三個list，分別紀錄所有要plot的位置分量
 # pu, pv, pw為三個list，分別紀錄所有要plot的orientation分量
-# Make the grid
+
+'''
 px, py, pz = np.meshgrid(np.arange(-0.8, 1, 0.2),
                       np.arange(-0.8, 1, 0.2),
                       np.arange(-0.8, 1, 0.8))
-
-# Make the direction data for the arrows
 pu = np.sin(np.pi * px) * np.cos(np.pi * py) * np.cos(np.pi * pz)
 pv = -np.cos(np.pi * px) * np.sin(np.pi * py) * np.cos(np.pi * pz)
 pw = (np.sqrt(2.0 / 3.0) * np.cos(np.pi * px) * np.cos(np.pi * py) *
      np.sin(np.pi * pz))
+'''
+# Make the grid
+px, py, pz = pd_pos
+# Make the direction data for the arrows
+pu,pv,pw = ori_ang2cart(pd_ori_ang)
 
-ax.quiver(px, py, pz, pu, pv, pw, length=0.1, normalize=True)
+ax.quiver(px, py, pz, pu, pv, pw, length=0.2, normalize=True,color='g')
 
-ax.set_xlim([-2, 2])
-ax.set_ylim([-2, 2])
-ax.set_zlim([-2, 0])
+# Make the grid
+px, py, pz = glob_led_pos.transpose(2,0,1,3)
+# Make the direction data for the arrows
+pu,pv,pw = np.tile(glob_led_ori,(kpos,1,1,1)).transpose(2,1,0,3)
+
+ax.quiver(px, py, pz, pu, pv, pw, length=0.2, normalize=True,color='r')
+
+# setting
+ax.set_xlim([0, 3])
+ax.set_ylim([0, 3])
+ax.set_zlim([0, 3])
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_zlabel('z')
 ax.set_title("config")
 
 # plt.show()
+
 '''
 fig = plt.figure()
 
@@ -224,11 +239,10 @@ ax.set_title("config")
 
 
 
-# transfer led coor to pd coor
 
 
 
-# estimate d,theta,psi
+
 # calculate strendth (mxn)
 
 # calculate pos
