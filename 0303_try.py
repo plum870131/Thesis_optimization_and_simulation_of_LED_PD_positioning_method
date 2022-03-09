@@ -266,8 +266,8 @@ strength = cal_strength_current(dis,in_ang,out_ang,pd_para,led_para)
 
 # with db noise
 # 10log_10(signal/noise)
-strength_wnoise = strength + (strength/(np.power(10,snr_db/10))) + bias(strength,bias_val)
-
+# strength_wnoise = strength + (strength/(np.power(10,snr_db/10))) + bias(strength,bias_val)
+strength_wnoise = strength
 
 # =======================================================================
 '''
@@ -293,23 +293,53 @@ x_opt = (AtA)^(-1)Atb
 led_m, area, respon = pd_para
 pd_m , power= led_para
 k = respon*power*(led_m+1)*area /(2*np.pi)
-r,p = 0,0
+r,p = 5,10
+threshold_strength = 0
+
+def positive(lst):
+    return [i for i in range(len(lst)) if lst[i] > 0] or None
 
 set_of_signal = strength_wnoise[r,p,:,:] #ledxpd
-for p in range(set_of_signal.shape[1]):
-    for l in range(set_of_signal.shape[0]): 
-        pass
-'im coding here hi ' 'hello '
+for l in range(led_num): 
+    # Ax = b
+    # 處理掉太小的資訊
+    big_enough_index= positive(set_of_signal[l,:]-threshold_strength)
+    big_enough_len = len(big_enough_index)
 
-print()
+    if big_enough_len>=4:
+        # 可以得解
+        # 夠大的強度
+        # big_enough_list = set_of_signal[l,big_enough_index]
 
-# 
+        # 取reference pd
+        ref_index = np.argmax(np.dot(pd_ori_car[:,big_enough_index].T,np.array([[0,0,1]]).T)) #最垂直的pd當作被除數
+
+        big_enough_index = np.delete(big_enough_index,ref_index)# bigenough-1個，少較ref
+
+        # A = np.zeros((big_enough_len-1,3))
+        # b =  np.zeros((big_enough_len-1,1))
+        Q = np.divide(set_of_signal[l,big_enough_index],set_of_signal[l,ref_index]) # bigenough-1
+        print(big_enough_len)
+        A = pd_ori_car[:,big_enough_index].T-np.multiply(np.tile(Q,(3,1)).T,np.tile(pd_ori_car[:,ref_index],(big_enough_len-1,1)))
+        b = np.multiply((-np.tile(glob_led_pos[r,p,:,l],(big_enough_len-1,1))\
+                            +pd_pos[:,big_enough_index].T),\
+                            pd_ori_car[:,big_enough_index].T)\
+                        .sum(axis = 1).reshape((big_enough_len-1,1))\
+            + np.multiply(Q.reshape((big_enough_len-1,1)),\
+                            np.dot(glob_led_pos[r,p,:,l],pd_ori_car[:,ref_index])
+                            -np.dot(pd_pos[:,ref_index],pd_ori_car[:,ref_index]))
+        sol_pos = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, b))
+        print(sol_pos,'sol_pos',r,p,l)    
+    else: print(r,p,l,'不夠多啦')
 
 
-# A_lin = np.array([])
-# b_lin = np.array([])
-# sol_lin = np.dot(np.linalg.inv(np.dot(A_lin.T, A_lin)), np.dot(A_lin.T, b_lin))
 
+# print(A.shape,'A')
+# print(b.shape,'b')
+        
+
+
+print(testp_pos[:,p],'real')
 
 
 # =======================================================================
@@ -367,7 +397,7 @@ ax.set_ylabel('y')
 ax.set_zlabel('z')
 ax.set_title("config")
 
-# plt.show()
+plt.show()
 
 # 分開比較：
 # n,m數量
