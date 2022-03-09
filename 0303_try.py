@@ -26,7 +26,9 @@ sympy.init_printing()
 
 # update
 
-#------easy-------
+# -------------------------- function def ------------------------------------
+
+'''形式轉換'''
 # 把一維向量變成3x1(垂直)的向量
 def form(list1): #list = [a,b,c]
     list2 = np.array(list1)
@@ -34,6 +36,8 @@ def form(list1): #list = [a,b,c]
         return np.transpose(np.array([list1]))
     elif len(list2.shape)==2: # ?x3的進來轉一圈  
         return np.transpose(np.array(list1))
+
+'''座標轉換 matrix '''
 def ori_ang2cart(ori_ang):#ori_ang = 2xsensor_num np.array, 第一列傾角 第二列方位
     return np.stack((\
     np.multiply(np.sin(ori_ang[0,:]), np.cos(ori_ang[1,:])),\
@@ -74,7 +78,6 @@ def homogeneous_mat(ang_list, trans): #trans(3,1)
     hom[3,3]=1
     hom[:3,3]=trans
     return hom
-
 def inv_hom_mat(ang_list, trans):#trans(3,1)
     hom = np.zeros((4,4))
     hom[:3,:3]= np.transpose(rotate(ang_list))
@@ -82,43 +85,7 @@ def inv_hom_mat(ang_list, trans):#trans(3,1)
     hom[:3,3]=-1*np.dot(hom[:3,:3],trans)
     return hom
 
-# =======================================================================
-# Scenario
-
-xx,yy,zz = np.array(np.meshgrid(np.arange(0, 3.3, 0.5), #2 x
-                      np.arange(0, 3.3, 0.5), #1 y
-                      np.arange(1, 3, 1))) #3 z
-
-# [[x][y][z]] 3x?
-testp_pos = np.stack((np.ndarray.flatten(xx),np.ndarray.flatten(yy),np.ndarray.flatten(zz)),0)                     
-kpos = testp_pos[0].size # num of test position
-print(kpos,'kpos')
-# [[rotx][roty][rotz]] 3x?
-testp_rot = np.stack((np.deg2rad(np.arange(180,270,15)),np.zeros(np.arange(180,270,15).size),np.zeros(np.arange(180,270,15).size)),0)
-krot = testp_rot[0].size # num of test rotate orientation
-print(krot,'krot')
-# =======================================================================
-# pd led: coor config
-# wrt 自己的coordinate
-pd_num = 5
-pd_pos = (np.zeros((3,pd_num)))
-alpha = np.deg2rad(20)#傾角
-beta = np.deg2rad(360/pd_num)#方位角
-pd_ori_ang = np.stack( (alpha*np.ones(5),(beta*np.arange(1,pd_num+1))),0 )
-pd_ori_car = ori_ang2cart(pd_ori_ang)
-
-#pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
-pd_para = [2,1,1] #[0:M, 1:area, 2:respons]
-
-led_num = 2
-led_pos = form([[0,0,0],[1,0,0]])
-led_ori_ang = np.array([np.deg2rad([0,30]),[0,0]])
-led_ori_car = ori_ang2cart(pd_ori_ang)
-led_para = [2,100]#led_para[0:m, 1:optical power]
-
-# =======================================================================
-# transfer led coor to pd coor
-
+'''coordinate transfer'''
 # 產生k2個rotation matrix
 # shape(k2,3,3) 每個3x3是一個rotation matrix
 def testp_rot_matlist(testp_rot): # testp_rot [[rotx][roty][rotz]] 3x?
@@ -126,16 +93,13 @@ def testp_rot_matlist(testp_rot): # testp_rot [[rotx][roty][rotz]] 3x?
     for i in range(krot):
         out[i,:,:] = rotate_mat(testp_rot[:,i])
     return out ## shape(k2,3,3) 每個3x3是一個rotation matrix
+
 # 把多個點轉到global coor上
 # pos是多個點 3x?
 # testp_rot是[[rotx][roty][rotz]] ，多個轉換參數
 # return krotx3xm
 def global_testp_after_rot(pos, testp_rot): #pos(or ori)[3x?] #testp_rot (krot,3,3)
     rot_list = testp_rot_matlist(testp_rot)
-    # print(pos,'pos')
-    # print(testp_rot,'prot')
-    # print(testp_rot[0].size,'krot')
-    # print(pos[0].size,'led)num 2')
     out = np.zeros((testp_rot[0].size,3,pos[0].size))
     for i in range(testp_rot[0].size):
         out[i,:,:] = np.dot(rot_list[i],pos)
@@ -158,17 +122,8 @@ def global_testp_trans(pos , testp_pos):
     elif len(pos.shape)==2:
         print('error in global_testp_trans')
 
-#(krot,kpos,3,m) 
-#先把led_num個pos位置經過krot次旋轉，變成krotx3xled_num的testpoints，再將所有testpoints平移到testp_pos上
-glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
-# print(glob_led_pos,'me')
-#(krot,3,led_num) 
-glob_led_ori = global_testp_after_rot(ori_ang2cart(led_ori_ang),testp_rot)
-# print(glob_led_ori.shape,'me')
 
-
-# =======================================================================
-# estimate d,theta,psi
+'''計算d,in_ang,out_ang'''
 def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num):
     dis = np.zeros((krot,kpos,led_num,pd_num))
     in_ang = np.zeros((krot,kpos,led_num,pd_num))
@@ -199,6 +154,82 @@ def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,p
     
     return dis,in_ang,out_ang
 
+'''計算strength'''
+def cal_strength_current(dis,in_ang,out_ang,pd_para,led_para):
+    # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
+    # dis,in_ang,out_ang   [krot x kpos x led x pd]
+    # strength [krot x kpos x led x pd]
+    # strength = np.zeros((krot,kpos,led_num,pd_num))
+    led_m, area, respon = pd_para
+    pd_m , power= led_para
+    k = respon*power*(led_m+1)*area /(2*np.pi)
+    return k*np.divide( np.multiply(\
+                            np.power(np.cos(in_ang),pd_m),\
+                            np.power(np.cos(out_ang),led_m)),\
+                        np.square(dis))
+
+'''add noise'''
+#return一個跟strength大小一樣的bias vector
+def bias(strength,bias_val): # strength[(krot, kpos, led_num, pd_num)] bias:int
+    return bias_val*np.ones(strength.shape)
+
+
+# =======================================================================
+# Scenario
+
+xx,yy,zz = np.array(np.meshgrid(np.arange(0, 3.3, 0.5), #2 x
+                      np.arange(0, 3.3, 0.5), #1 y
+                      np.arange(1, 3, 1))) #3 z
+
+# [[x][y][z]] 3x?
+testp_pos = np.stack((np.ndarray.flatten(xx),np.ndarray.flatten(yy),np.ndarray.flatten(zz)),0)                     
+kpos = testp_pos[0].size # num of test position
+print(kpos,'kpos')
+# [[rotx][roty][rotz]] 3x?
+testp_rot = np.stack((np.deg2rad(np.arange(180,270,15)),np.zeros(np.arange(180,270,15).size),np.zeros(np.arange(180,270,15).size)),0)
+krot = testp_rot[0].size # num of test rotate orientation
+print(krot,'krot')
+
+snr_db = 10
+bias_val = 0
+
+
+
+
+
+# -------------------- insode optimization loop -------------------------
+# =======================================================================
+# pd led: coor config
+# wrt 自己的coordinate
+pd_num = 5
+pd_pos = (np.zeros((3,pd_num)))
+alpha = np.deg2rad(20)#傾角
+beta = np.deg2rad(360/pd_num)#方位角
+pd_ori_ang = np.stack( (alpha*np.ones(5),(beta*np.arange(1,pd_num+1))),0 )
+pd_ori_car = ori_ang2cart(pd_ori_ang)
+
+#pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
+pd_para = [2,1,1] #[0:M, 1:area, 2:respons]
+
+led_num = 2
+led_pos = form([[0,0,0],[1,0,0]])
+led_ori_ang = np.array([np.deg2rad([0,30]),[0,0]])
+led_ori_car = ori_ang2cart(pd_ori_ang)
+led_para = [2,100]#led_para[0:m, 1:optical power]
+
+# =======================================================================
+# transfer led coor to pd coor
+
+#(krot,kpos,3,m) 
+#先把led_num個pos位置經過krot次旋轉，變成krotx3xled_num的testpoints，再將所有testpoints平移到testp_pos上
+glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
+
+#(krot,3,led_num) 
+glob_led_ori = global_testp_after_rot(ori_ang2cart(led_ori_ang),testp_rot)
+
+# =======================================================================
+# estimate d,theta,psi
+
 # krot x kpos x led x pd
 dis,in_ang,out_ang = cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num)
 
@@ -221,38 +252,80 @@ print(out_cal==out_real)
 '''
 
 
-print('hi')
+
 
 # =======================================================================
 # calculate strendth 
 
 # # dis,in_ang,out_ang   [krot x kpos x led x pd]
-
-
-def cal_strength_current(dis,in_ang,out_ang,pd_para,led_para):
-    # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
-    # dis,in_ang,out_ang   [krot x kpos x led x pd]
-    # strength [krot x kpos x led x pd]
-    # strength = np.zeros((krot,kpos,led_num,pd_num))
-    led_m, area, respon = pd_para
-    pd_m , power= led_para
-    k = respon*power*(led_m+1)*area /(2*np.pi)
-    return k*np.divide( np.multiply(\
-                            np.power(np.cos(in_ang),pd_m),\
-                            np.power(np.cos(out_ang),led_m)),\
-                        np.square(dis))
-    
-print(cal_strength_current(dis,in_ang,out_ang,pd_para,led_para).shape)
+# strength 是pd電流 [krot x kpos x led x pd] 
+strength = cal_strength_current(dis,in_ang,out_ang,pd_para,led_para) 
 
 # =======================================================================
 # add noise
 
+# with db noise
+# 10log_10(signal/noise)
+strength_wnoise = strength + (strength/(np.power(10,snr_db/10))) + bias(strength,bias_val)
+
+
+# =======================================================================
+'''
+# clear data
+
+# view angle
+# sarutation
+# 忽略太小的數據
+'''
 # =======================================================================
 # calculate pos
+# 忽略太小的數據
+
+'''假設pd於同個位置
+Ax = b solve for best x
+x_opt = (AtA)^(-1)Atb
+'''
+
+# def sol_pos_assume_pdp(strength_wnoise, led_para,pd_para):
+    # strength_wnoise [krot x kpos x led x pd] 
+    # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
+
+led_m, area, respon = pd_para
+pd_m , power= led_para
+k = respon*power*(led_m+1)*area /(2*np.pi)
+r,p = 0,0
+
+set_of_signal = strength_wnoise[r,p,:,:] #ledxpd
+for p in range(set_of_signal.shape[1]):
+    for l in range(set_of_signal.shape[0]): 
+        pass
+'im coding here hi ' 'hello '
+
+print()
+
+# 
+
+
+# A_lin = np.array([])
+# b_lin = np.array([])
+# sol_lin = np.dot(np.linalg.inv(np.dot(A_lin.T, A_lin)), np.dot(A_lin.T, b_lin))
+
+
 
 # =======================================================================
 # calculate error
 
+# 共有krotxkpos個testpoint，產生krotxkpos個estimated pos
+# estimated_pos [krot,kpos,3]
+# 正確位置在testp_pos，因為glob_led_pos是led個別的位置不是整個coordinate的位置
+# testp_pos [3xkpos], kpos一樣的話krot可忽視
+
+estimated_pos = np.zeros((krot,kpos,3))
+# testp_pos [3xkpos], kpos一樣的話krot可忽視
+real_pos = np.tile(testp_pos.transpose(),(krot,1,1)) #[krotxkposx3]
+
+# error measure only distance
+error_dis = np.sqrt((np.square(estimated_pos-real_pos)).sum(axis=2))
 
 
 # =======================================================================
@@ -296,30 +369,13 @@ ax.set_title("config")
 
 # plt.show()
 
-'''
-fig = plt.figure()
+# 分開比較：
+# n,m數量
 
-ax = fig.add_subplot(111, projection = '3d')
-for i in led_list:
-    x,y,z = zip(i.point) #position
-    u,v,w = zip(0.3*i.orien) #orientation
-    ax.quiver(x,y,z,u,v,w,color='r')
-    # ax.quiver(np.concatenate((i.point,i.point+i.orien),axis = 0),color = 'r')
-for i in pd_list:
-    x,y,z = zip(i.point)
-    u,v,w = zip(0.3*i.orien)
-    ax.quiver(x,y,z,u,v,w,color='g')
+# 每次update:
+# n,m pos,ori
 
-ax.set_xlim([-2, 2])
-ax.set_ylim([-2, 2])
-ax.set_zlim([-2, 0])
-ax.set_title("config")
-
-# plt.show()
-'''
-
-
-
+print('hi')
 
 
 
