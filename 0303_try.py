@@ -155,17 +155,18 @@ def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,p
     return dis,in_ang,out_ang
 
 '''計算strength'''
-def cal_strength_current(dis,in_ang,out_ang,pd_para,led_para):
+def cal_strength_current(dis,in_ang,out_ang,led_para,pd_para):
     # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
     # dis,in_ang,out_ang   [krot x kpos x led x pd]
     # strength [krot x kpos x led x pd]
     # strength = np.zeros((krot,kpos,led_num,pd_num))
-    led_m, area, respon = pd_para
-    pd_m , power= led_para
+    pd_m, area, respon = pd_para
+    led_m , power= led_para
     k = respon*power*(led_m+1)*area /(2*np.pi)
+    
     return k*np.divide( np.multiply(\
-                            np.power(np.cos(in_ang),pd_m),\
-                            np.power(np.cos(out_ang),led_m)),\
+                            np.power(   np.multiply(np.cos(in_ang)>0,np.cos(in_ang))    ,pd_m),\
+                            np.power(   np.multiply(np.cos(out_ang)>0,np.cos(out_ang))   ,led_m)),\
                         np.square(dis))
 
 '''add noise'''
@@ -177,8 +178,8 @@ def bias(strength,bias_val): # strength[(krot, kpos, led_num, pd_num)] bias:int
 # =======================================================================
 # Scenario
 
-xx,yy,zz = np.array(np.meshgrid(np.arange(0, 3.3, 0.5), #2 x
-                      np.arange(0, 3.3, 0.5), #1 y
+xx,yy,zz = np.array(np.meshgrid(np.arange(-1.5, 1.6, 1), #2 x
+                      np.arange(-1.5, 1.6, 1), #1 y
                       np.arange(1, 3, 1))) #3 z
 
 # [[x][y][z]] 3x?
@@ -186,14 +187,15 @@ testp_pos = np.stack((np.ndarray.flatten(xx),np.ndarray.flatten(yy),np.ndarray.f
 kpos = testp_pos[0].size # num of test position
 print(kpos,'kpos')
 # [[rotx][roty][rotz]] 3x?
-testp_rot = np.stack((np.deg2rad(np.arange(180,270,15)),np.zeros(np.arange(180,270,15).size),np.zeros(np.arange(180,270,15).size)),0)
+# testp_rot = np.stack((np.deg2rad(np.arange(180-30,180+30,15)),np.zeros(np.arange(180,270,15).size),np.zeros(np.arange(180,270,15).size)),0)
+testp_rot = np.array([[np.pi,0,0]]).T
 krot = testp_rot[0].size # num of test rotate orientation
 print(krot,'krot')
 
 snr_db = 10
 bias_val = 0
 
-
+threshold_strength = 0 #pd訊號大於他才要被計算
 
 
 
@@ -203,7 +205,8 @@ bias_val = 0
 # wrt 自己的coordinate
 pd_num = 5
 pd_pos = (np.zeros((3,pd_num)))
-alpha = np.deg2rad(20)#傾角
+# pd_pos = np.tile(np.array([1,0,0]),(pd_num,1)).T
+alpha = np.deg2rad(45)#傾角
 beta = np.deg2rad(360/pd_num)#方位角
 pd_ori_ang = np.stack( (alpha*np.ones(5),(beta*np.arange(1,pd_num+1))),0 )
 pd_ori_car = ori_ang2cart(pd_ori_ang)
@@ -211,21 +214,21 @@ pd_ori_car = ori_ang2cart(pd_ori_ang)
 #pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
 pd_para = [2,1,1] #[0:M, 1:area, 2:respons]
 
-led_num = 2
-led_pos = form([[0,0,0],[1,0,0]])
-led_ori_ang = np.array([np.deg2rad([0,30]),[0,0]])
-led_ori_car = ori_ang2cart(pd_ori_ang)
+led_num = 1
+led_pos = form([[0,0,0]])
+led_ori_ang = np.array([np.deg2rad([0,0])]).T
+led_ori_car = ori_ang2cart(led_ori_ang)
 led_para = [2,100]#led_para[0:m, 1:optical power]
-
+# print(led_ori_car,'a')
 # =======================================================================
 # transfer led coor to pd coor
 
 #(krot,kpos,3,m) 
 #先把led_num個pos位置經過krot次旋轉，變成krotx3xled_num的testpoints，再將所有testpoints平移到testp_pos上
 glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
-
+# print(glob_led_pos.shape)
 #(krot,3,led_num) 
-glob_led_ori = global_testp_after_rot(ori_ang2cart(led_ori_ang),testp_rot)
+glob_led_ori = global_testp_after_rot(led_ori_car,testp_rot)
 
 # =======================================================================
 # estimate d,theta,psi
@@ -259,7 +262,7 @@ print(out_cal==out_real)
 
 # # dis,in_ang,out_ang   [krot x kpos x led x pd]
 # strength 是pd電流 [krot x kpos x led x pd] 
-strength = cal_strength_current(dis,in_ang,out_ang,pd_para,led_para) 
+strength = cal_strength_current(dis,in_ang,out_ang,led_para,pd_para) 
 
 # =======================================================================
 # add noise
@@ -290,12 +293,18 @@ x_opt = (AtA)^(-1)Atb
     # strength_wnoise [krot x kpos x led x pd] 
     # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
 
-led_m, area, respon = pd_para
-pd_m , power= led_para
+pd_m, area, respon = pd_para
+led_m , power= led_para
 k = respon*power*(led_m+1)*area /(2*np.pi)
-r,p = 5,10
-threshold_strength = 0
+r,p = 0,51
+# print(strength[r,p,:],'str')
+# print(glob_led_pos[r,p,:,:],'pos')
+# print(glob_led_ori[r,:,:],'ori')
+# print(dis[r,p,:,:],'dis')
+# print(in_ang[r,p,:,:],'inang')
+# print(out_ang[r,p,:,:],'outang')
 
+'''
 def positive(lst):
     return [i for i in range(len(lst)) if lst[i] > 0] or None
 
@@ -303,6 +312,7 @@ set_of_signal = strength_wnoise[r,p,:,:] #ledxpd
 for l in range(led_num): 
     # Ax = b
     # 處理掉太小的資訊
+    # print(set_of_signal)
     big_enough_index= positive(set_of_signal[l,:]-threshold_strength)
     big_enough_len = len(big_enough_index)
 
@@ -312,24 +322,37 @@ for l in range(led_num):
         # big_enough_list = set_of_signal[l,big_enough_index]
 
         # 取reference pd
-        ref_index = np.argmax(np.dot(pd_ori_car[:,big_enough_index].T,np.array([[0,0,1]]).T)) #最垂直的pd當作被除數
-
+        ref_index = big_enough_index[np.argmax(np.dot(pd_ori_car[:,big_enough_index].T,np.array([[0,0,1]]).T))] #最垂直的pd當作被除數
+        # print(big_enough_index,'index')
+        # print(big_enough_index[np.argmax(np.dot(pd_ori_car[:,big_enough_index].T,np.array([[0,0,1]]).T))],'dot')
         big_enough_index = np.delete(big_enough_index,ref_index)# bigenough-1個，少較ref
-
+        print(big_enough_index,'new',ref_index)
         # A = np.zeros((big_enough_len-1,3))
         # b =  np.zeros((big_enough_len-1,1))
-        Q = np.divide(set_of_signal[l,big_enough_index],set_of_signal[l,ref_index]) # bigenough-1
+        Q = np.power(np.divide(set_of_signal[l,big_enough_index],set_of_signal[l,ref_index]) ,1/pd_m)# bigenough-1
+        # Q = np.divide(set_of_signal[l,big_enough_index],set_of_signal[l,ref_index]) # bigenough-1
+        print(Q,'Q')
+        print(np.divide(np.cos(in_ang[r,p,l,big_enough_index]),np.cos(in_ang[r,p,l,ref_index])))
         print(big_enough_len)
+        print(pd_ori_car[ref_index])
         A = pd_ori_car[:,big_enough_index].T-np.multiply(np.tile(Q,(3,1)).T,np.tile(pd_ori_car[:,ref_index],(big_enough_len-1,1)))
-        b = np.multiply((-np.tile(glob_led_pos[r,p,:,l],(big_enough_len-1,1))\
+        b = np.multiply((-np.tile(led_pos[:,l],(big_enough_len-1,1))\
                             +pd_pos[:,big_enough_index].T),\
                             pd_ori_car[:,big_enough_index].T)\
                         .sum(axis = 1).reshape((big_enough_len-1,1))\
             + np.multiply(Q.reshape((big_enough_len-1,1)),\
-                            np.dot(glob_led_pos[r,p,:,l],pd_ori_car[:,ref_index])
+                            np.dot(led_pos[:,l],pd_ori_car[:,ref_index])
                             -np.dot(pd_pos[:,ref_index],pd_ori_car[:,ref_index]))
         sol_pos = np.dot(np.linalg.inv(np.dot(A.T, A)), np.dot(A.T, b))
+        print(A,'A')
+        print(b,'b')
+        print(np.multiply((-np.tile(led_pos[:,l],(big_enough_len-1,1))\
+                            +pd_pos[:,big_enough_index].T),\
+                            pd_ori_car[:,big_enough_index].T)\
+                        .sum(axis = 1).reshape((big_enough_len-1,1)))
         print(sol_pos,'sol_pos',r,p,l)    
+
+
     else: print(r,p,l,'不夠多啦')
 
 
@@ -340,7 +363,7 @@ for l in range(led_num):
 
 
 print(testp_pos[:,p],'real')
-
+'''
 
 # =======================================================================
 # calculate error
@@ -376,27 +399,29 @@ pw = (np.sqrt(2.0 / 3.0) * np.cos(np.pi * px) * np.cos(np.pi * py) *
 '''
 # Make the grid
 px, py, pz = pd_pos
+# print(px.shape)
 # Make the direction data for the arrows
 pu,pv,pw = ori_ang2cart(pd_ori_ang)
 
 ax.quiver(px, py, pz, pu, pv, pw, length=0.2, normalize=True,color='g')
 
 # Make the grid
-px, py, pz = glob_led_pos.transpose(2,0,1,3)
+px2, py2, pz2 = glob_led_pos.transpose(2,0,1,3)
+# print(px2.shape)
 # Make the direction data for the arrows
-pu,pv,pw = np.tile(glob_led_ori,(kpos,1,1,1)).transpose(2,1,0,3)
-
-ax.quiver(px, py, pz, pu, pv, pw, length=0.2, normalize=True,color='r')
+pu2,pv2,pw2 = np.tile(glob_led_ori,(kpos,1,1,1)).transpose(2,1,0,3)
+# pu2,pv2,pw2 =np.ones((3,1,98,1))
+ax.quiver(px2, py2, pz2, pu2, pv2, pw2, length=0.2, normalize=True,color='r')
 
 # setting
-ax.set_xlim([0, 3])
-ax.set_ylim([0, 3])
-ax.set_zlim([0, 3])
+# ax.set_xlim([0, 3])
+# ax.set_ylim([0, 3])
+# ax.set_zlim([0, 3])
 ax.set_xlabel('x')
 ax.set_ylabel('y')
 ax.set_zlabel('z')
-ax.set_title("config")
-
+ax.set_title("Test Points")
+plt.grid()
 plt.show()
 
 # 分開比較：

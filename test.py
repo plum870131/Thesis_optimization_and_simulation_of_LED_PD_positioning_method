@@ -6,9 +6,5 @@ from scipy.optimize import fsolve,root
 import math
 sympy.init_printing()
 
-def positive(lst):
-    return [i for i in range(len(lst)) if lst[i] > 0] or None
-
-a = np.array([1,5,10,3,20])
-b = 4.5
-print(a[positive(a-b)])
+a = np.array([4,2,3,4,5,6,7,8])
+print(np.multiply((a-3)>0,a))
