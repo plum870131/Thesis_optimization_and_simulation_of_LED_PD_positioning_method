@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import funcfile as func
+import funcfile_old as func
 import sympy
 from scipy.optimize import fsolve,root
 import math
