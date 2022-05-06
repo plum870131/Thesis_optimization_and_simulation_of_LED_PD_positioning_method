@@ -81,119 +81,9 @@ def rodrigue_mulmul(k_vec,ang): #k:[sample,3] ang[sample,]
         + np.multiply((1-np.cos(ang)).reshape(-1,1,1),(np.matmul(K,K))) #angx3x3
     return R #samplex3x3
 
-# =============================================================================
-# # set target ori
-# ori_tar = np.deg2rad(np.array([[15,20]])).T
-# 
-# # set pd ori
-# pd_num = 5
-# pd_ori = np.deg2rad(     np.stack( (30*np.ones(pd_num),  (360/pd_num*np.arange(1,pd_num+1))  )     ,0 )    ) #[2x?]
-# 
-# 
-# # set ref and other: ref is the nearest one
-# ref = 4
-# other = np.delete(np.array(range(pd_num)), [ref])
-# pd_ref_ori = pd_ori[:,ref].reshape((2,1)) #[2x1]
-# pd_other_ori = pd_ori[:,other] #[2xother]
-# 
-# 
-# # set angle sample amount
-# sample = 50
-# 
-# # calculate measurement: cos_ratio: cosref/cosother (always>1)
-# cos_ratio = np.divide(np.cos(ang_from_ori(ori_tar,pd_ref_ori)) , np.cos(ang_from_ori(ori_tar,pd_other_ori))).T #[other,2]
-# 
-# # calculate pd angle wrt ref_pf: check minumum ang sum
-# ori_diff = ang_from_ori(pd_ref_ori,pd_other_ori).T #[otherx1]
-# # print(ori_diff,'dif')
-# 
-# '''calculate ang_ref and ang_other'''
-# # ang_ref = arccos(r*cos(ang_other))
-# # ang_other = start from arccos(r*cos(other))
-# ang_possib_other = np.multiply( np.repeat([np.linspace(0,1,sample)],other.size,axis=0), np.pi/2-np.arccos(np.divide(1,cos_ratio))  ) +np.arccos(np.divide(1,cos_ratio)) #[otherx100]
-# ang_possib_ref = np.arccos(np.multiply(cos_ratio,np.cos(ang_possib_other)))
-# ang_start = np.argmax((ang_possib_other+ang_possib_ref)>ori_diff, axis =1).reshape((other.size,1))
-# 
-# # pd project to stereographic plot
-# stereo_cart_ref = pol2cart(stereo_sph2pol(pd_ref_ori)) #[2,1]
-# stereo_cart_other = pol2cart(stereo_sph2pol(pd_other_ori))#[2,other]
-# stereo_cart_tar = pol2cart(stereo_sph2pol(ori_tar))#[2,1]
-# # print(stereo_cart_other)
-# 
-# 
-# 
-# r_ref = np.sqrt(np.sum(np.square(\
-#             (pol2cart(stereo_sph2pol( np.concatenate( (  ((ang_possib_ref + pd_ref_ori[0,0]).reshape((1,other.size * sample))),\
-#                            (np.ones((1,other.size * sample))*pd_ref_ori[1,0])) )    ))).reshape((2,other.size,sample))\
-#             - stereo_cart_ref.reshape((2,1,1))    \
-#         ),axis=0) )  
-# sss = pol2cart(stereo_sph2pol(\
-#                 np.stack(\
-#                     ((ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
-#                 ).reshape(2,other.size*sample)))\
-#             .reshape(2,other.size,sample)
-# sss1 = pol2cart(stereo_sph2pol(\
-#                 np.stack(\
-#                     ((-ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
-#                 ).reshape(2,other.size*sample)))\
-#             .reshape(2,other.size,sample)
-# abbbb = np.sqrt(np.sum(np.square(\
-#             pol2cart(stereo_sph2pol(\
-#                 np.stack(\
-#                     ((ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
-#                 ).reshape(2,other.size*sample)))\
-#             .reshape(2,other.size,sample)\
-#             -stereo_cart_ref.reshape((2,1,1)) \
-#         ),axis=0))
-# abbbb1 = np.sqrt(np.sum(np.square(\
-#             pol2cart(stereo_sph2pol(\
-#                 np.stack(\
-#                     ((-ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
-#                 ).reshape(2,other.size*sample)))\
-#             .reshape(2,other.size,sample)\
-#             -stereo_cart_ref.reshape((2,1,1)) \
-#         ),axis=0))
-# =============================================================================
-
-
-
-
-
-# =============================================================================
-# r_other =   np.sqrt(np.sum(np.square(\
-#                 pol2cart(stereo_sph2pol(\
-#                     np.concatenate\
-#                             (((pd_other_ori[0,:].reshape((4,1))+ang_possib_other).reshape((1,other.size*sample)),\
-#                             np.repeat(pd_other_ori[1,:],sample).reshape((1,-1))) )\
-#                     )).reshape((2,other.size,sample))\
-#                 - stereo_cart_other.reshape((2,-1,1))\
-#             ),axis=0))
-# 
-# d_vector = stereo_cart_other.T-stereo_cart_ref.T #[otherx2]
-# d = np.sqrt(np.sum(np.square(d_vector),axis=1)).reshape((-1,1)) #[otherx1]
-# a = np.divide( np.square(d)+np.square(r_ref)-np.square(r_other) , 2*np.square(d))  #[other x sample]
-# mid =   stereo_cart_ref.reshape(2,1,1) + \
-#         np.multiply( \
-#             d_vector.T.reshape(2,-1,1) , np.repeat(a.reshape(1,other.size,-1),2,axis=0\
-#         )) #[2(xy) x other x sample]
-# curve =    np.tile(mid,(2,1,1,1))+\
-#         np.multiply(\
-#             np.stack((np.ones((2,other.size,sample)),-1*np.ones((2,other.size,sample)))),\
-#             np.tile(\
-#                 np.multiply(\
-#                     np.tile(np.sqrt(np.square(r_ref)-np.square(a)), (2,1,1)),\
-#                     np.divide(d_vector,d).T.reshape((2,other.size,1))\
-#                 )
-#             ,(2,1,1,1)) \
-#         )#[2(兩條) x 2(xy) x other x sample]
-# 
-# 
-# print(curve.shape,'ya')
-# # print( np.repeat(pd_other_ori[1,:].reshape((other.size,1)),sample,axis=1 ).shape  ,'hi')
-# 
-# print(stereo_cart_ref.shape)
-# print(stereo_cart_other.shape)
-# 
+def cart2sph(cart_v):#3
+    cart = cart_v.reshape((3,1))/np.sqrt(np.sum(np.square(cart_v)))
+    return np.array([np.arccos(cart[2,:]),np.arctan(cart[1,:]/cart[0,:])+(cart[0,:]<0)*(np.pi)])#2x1
 
 sample = 50
 ax1 = np.array([1,1,0])
@@ -223,6 +113,36 @@ in_ang1 = ang_from_ori(ori_tar,o1_ori)
 in_ang2 = ang_from_ori(ori_tar,o2_ori)
 ratio = np.cos(in_ang2)/np.cos(in_ang1)
 
+# plane intersection
+n1 = (o2-ratio*o1)/np.sqrt(np.sum(np.square(o2-ratio*o1)))
+check3 = np.dot(n1[:,0],ori_tar_cart[:,0])
+
+circle_a = np.row_stack(( np.pi/2*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
+ori_a = cart2sph(n1)
+rot_a = rotate_z(ori_a[1,0]) @ rotate_y(ori_a[0,0])
+circle_a_cart = ori_ang2cart(circle_a)
+circle_a_rot = rot_a @ circle_a_cart
+circle_a_rot = circle_a_rot[:,circle_a_rot[2,:]>0]
+circle_a_flat = stereo_3dto2d(circle_a_rot)
+#tar_sol = np.cross()
+
+circle1 = np.row_stack((  in_ang1*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
+circle1_cart = ori_ang2cart(circle1)
+# print(circle_cart)
+# print(circle)
+circle1_rot = np.matmul(rot1,circle1_cart)
+circle1_flat = stereo_3dto2d(circle1_rot)
+
+circle2 = np.row_stack((  in_ang2*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
+circle2_cart = ori_ang2cart(circle2)
+# print(circle_cart)
+# print(circle)
+circle2_rot = np.matmul(rot2,circle2_cart)
+circle2_flat = stereo_3dto2d(circle2_rot)
+
+
+
+# sample
 ang1 = np.linspace(np.arccos(1/ratio[0,0]),np.deg2rad(89),sample)
 ang2 = np.arccos(ratio[0,0]*np.cos(ang1))
 
@@ -241,7 +161,10 @@ p2 = np.matmul(rodrigue_mulmul(axis_side,-ang_side),mid)
 check = np.divide(np.inner(np.squeeze(o2_new,axis=1),np.squeeze(p1,axis=2)),np.inner(np.squeeze(o1_new,axis=1),np.squeeze(p1,axis=2)))
 check2 = np.divide(np.cos(ang2),np.cos(ang1))
 
-p11= np.concatenate((p1[np.logical_not(np.isnan(p1[:,0,0])),:,0],p2[np.logical_not(np.isnan(p2[:,0,0])),:,0]))
+pnew= np.concatenate((p1[np.logical_not(np.isnan(p1[:,0,0])),:,0],p2[np.logical_not(np.isnan(p2[:,0,0])),:,0]))
+pnew_nor =pnew-np.mean(pnew,axis=1).reshape(-1,1)
+pnew_cov = np.cov(pnew_nor.T) 
+pnew_e,pnew_ev = np.linalg.eig(pnew_cov)
 
 circle1 = np.row_stack((  in_ang1*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
 circle1_cart = ori_ang2cart(circle1)
@@ -262,7 +185,7 @@ circle2_flat = stereo_3dto2d(circle2_rot)
 fig = plt.figure(figsize=plt.figaspect(2.))
 fig.suptitle('PD and Stereographic Projection')
 
-ax = fig.add_subplot(2, 1, 1, projection='3d')
+ax = fig.add_subplot(211, projection='3d')
 ax.set_box_aspect(aspect = (1,1,0.5))
 # ax.set_aspect("auto")
 
@@ -273,19 +196,20 @@ y = np.sin(u)*np.sin(v)
 z = np.cos(v)
 ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
 
-ax.plot(circle1_rot[0,:],circle1_rot[1,:],circle1_rot[2,:])
-ax.plot(circle2_rot[0,:],circle2_rot[1,:],circle2_rot[2,:])
+l1, = ax.plot(circle1_rot[0,:],circle1_rot[1,:],circle1_rot[2,:],c='g')
+l2, = ax.plot(circle2_rot[0,:],circle2_rot[1,:],circle2_rot[2,:],c='b')
+l4, = ax.plot(circle_a_rot[0,:],circle_a_rot[1,:],circle_a_rot[2,:],c='r')
 
 #ax.scatter(mid[:,0,:],mid[:,1,:],mid[:,2,:])
-ax.scatter(p1[:,0,:],p1[:,1,:],p1[:,2,:],marker='x')
-ax.scatter(p2[:,0,:],p2[:,1,:],p2[:,2,:],marker='x')
+l5 = ax.scatter(p1[:,0,:],p1[:,1,:],p1[:,2,:],marker='x',c='coral')
+ax.scatter(p2[:,0,:],p2[:,1,:],p2[:,2,:],marker='x',c='coral')
 
 a,b,c = o1
-ax.scatter(a,b,c,marker='x',c='r')
+ax.scatter(a,b,c,marker='x',c='g')
 a,b,c = o2
 ax.scatter(a,b,c,marker='x',c='b')
 a,b,c = ori_tar_cart
-ax.scatter(a,b,c,marker='x',s=100,c='k')
+l3 = ax.scatter(a,b,c,marker='x',s=100,c='k')
 
 # ax3d.set_title('Radiant Flux at different distance and angle')
 ax.set_xlabel('x')
@@ -300,43 +224,159 @@ ax.set_xlim(-1.5,1.5)
 ax.set_ylim(-1.5,1.5)
 ax.set_zlim(0,1.5)
 
+ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from normal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
 
-
-ax = fig.add_subplot(2, 1, 2)
+ax = fig.add_subplot(223)
 
 ax.axis('equal')
 
-ax.plot(circle1_flat[0,:],circle1_flat[1,:])
-ax.scatter(o1_f[0,:],o1_f[1,:])
-ax.plot(circle2_flat[0,:],circle2_flat[1,:])
-ax.scatter(o2_f[0,:],o2_f[1,:])
+ax.plot(circle1_flat[0,:],circle1_flat[1,:],c='g')
+ax.scatter(o1_f[0,:],o1_f[1,:],c='g')
+ax.plot(circle2_flat[0,:],circle2_flat[1,:],c='b')
+ax.scatter(o2_f[0,:],o2_f[1,:],c='b')
+
+ax.plot(circle_a_flat[0,:],circle_a_flat[1,:],c='r')
 
 a,b = stereo_3dto2d(np.squeeze(p1,axis=2).T)
-ax.scatter(a,b,marker='x')
+ax.scatter(a,b,marker='x',c='coral')
 a,b = stereo_3dto2d(np.squeeze(p2,axis=2).T)
-ax.scatter(a,b,marker='x')
+ax.scatter(a,b,marker='x',c='coral')
 a,b = stereo_3dto2d(ori_tar_cart)
 ax.scatter(a,b,marker='x',c='k',s=100)
 
-# =============================================================================
-# ax.scatter(stereo_cart_ref[0],stereo_cart_ref[1],c='r',s =100)
-# ax.scatter(stereo_cart_other[0],stereo_cart_other[1],c='b')
-# ax.scatter(ori_tar[0],ori_tar[1],c='k')
-# print(pd_ref_ori,'1')
-# 
-# 
-# 
-# ax.scatter(sss[0,:],sss[1,:],c='b')
-# 
-# ax.scatter(sss1[0,:],sss1[1,:],c='k')
-# =============================================================================
-# ax.plot(s2[0,:,:],s2[1,:,:])
-# ax.plot(curve[0,0,:,:],curve[0,1,:,:])
-# ax.plot(curve[1,0,:,:],curve[1,1,:,:])
-#curve = [2(兩條) x 2(xy) x other x sample]
-# ax.legend([1,2,3,4])
+
 ax.grid(True)
+ax.set_title('Stereographic projection')
 
+ax = fig.add_subplot(224)
 
+ax.plot(circle1_rot[0,:],circle1_rot[1,:],c='g')
+ax.plot(circle2_rot[0,:],circle2_rot[1,:],c='b')
+ax.plot(circle_a_rot[0,:],circle_a_rot[1,:],c='r')
+
+#ax.scatter(mid[:,0,:],mid[:,1,:],mid[:,2,:])
+ax.scatter(p1[:,0,:],p1[:,1,:],marker='x',c='coral')
+ax.scatter(p2[:,0,:],p2[:,1,:],marker='x',c='coral')
+
+a,b,c = o1
+ax.scatter(a,b,marker='x',c='g')
+a,b,c = o2
+ax.scatter(a,b,marker='x',c='b')
+a,b,c = ori_tar_cart
+ax.scatter(a,b,marker='x',s=100,c='k')
+
+ax.axis('equal')
+ax.grid(True)
+ax.set_title('polar')
 
 # plt.show()
+
+
+
+
+''' try to solve grom stereographic
+# set target ori
+ori_tar = np.deg2rad(np.array([[15,20]])).T
+
+# set pd ori
+pd_num = 5
+pd_ori = np.deg2rad(     np.stack( (30*np.ones(pd_num),  (360/pd_num*np.arange(1,pd_num+1))  )     ,0 )    ) #[2x?]
+
+
+# set ref and other: ref is the nearest one
+ref = 4
+other = np.delete(np.array(range(pd_num)), [ref])
+pd_ref_ori = pd_ori[:,ref].reshape((2,1)) #[2x1]
+pd_other_ori = pd_ori[:,other] #[2xother]
+
+
+# set angle sample amount
+sample = 50
+
+# calculate measurement: cos_ratio: cosref/cosother (always>1)
+cos_ratio = np.divide(np.cos(ang_from_ori(ori_tar,pd_ref_ori)) , np.cos(ang_from_ori(ori_tar,pd_other_ori))).T #[other,2]
+
+# calculate pd angle wrt ref_pf: check minumum ang sum
+ori_diff = ang_from_ori(pd_ref_ori,pd_other_ori).T #[otherx1]
+# print(ori_diff,'dif')
+
+#calculate ang_ref and ang_other
+# ang_ref = arccos(r*cos(ang_other))
+# ang_other = start from arccos(r*cos(other))
+ang_possib_other = np.multiply( np.repeat([np.linspace(0,1,sample)],other.size,axis=0), np.pi/2-np.arccos(np.divide(1,cos_ratio))  ) +np.arccos(np.divide(1,cos_ratio)) #[otherx100]
+ang_possib_ref = np.arccos(np.multiply(cos_ratio,np.cos(ang_possib_other)))
+ang_start = np.argmax((ang_possib_other+ang_possib_ref)>ori_diff, axis =1).reshape((other.size,1))
+
+# pd project to stereographic plot
+stereo_cart_ref = pol2cart(stereo_sph2pol(pd_ref_ori)) #[2,1]
+stereo_cart_other = pol2cart(stereo_sph2pol(pd_other_ori))#[2,other]
+stereo_cart_tar = pol2cart(stereo_sph2pol(ori_tar))#[2,1]
+# print(stereo_cart_other)
+
+
+
+r_ref = np.sqrt(np.sum(np.square(\
+            (pol2cart(stereo_sph2pol( np.concatenate( (  ((ang_possib_ref + pd_ref_ori[0,0]).reshape((1,other.size * sample))),\
+                            (np.ones((1,other.size * sample))*pd_ref_ori[1,0])) )    ))).reshape((2,other.size,sample))\
+            - stereo_cart_ref.reshape((2,1,1))    \
+        ),axis=0) )  
+sss = pol2cart(stereo_sph2pol(\
+                np.stack(\
+                    ((ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
+                ).reshape(2,other.size*sample)))\
+            .reshape(2,other.size,sample)
+sss1 = pol2cart(stereo_sph2pol(\
+                np.stack(\
+                    ((-ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
+                ).reshape(2,other.size*sample)))\
+            .reshape(2,other.size,sample)
+abbbb = np.sqrt(np.sum(np.square(\
+            pol2cart(stereo_sph2pol(\
+                np.stack(\
+                    ((ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
+                ).reshape(2,other.size*sample)))\
+            .reshape(2,other.size,sample)\
+            -stereo_cart_ref.reshape((2,1,1)) \
+        ),axis=0))
+abbbb1 = np.sqrt(np.sum(np.square(\
+            pol2cart(stereo_sph2pol(\
+                np.stack(\
+                    ((-ang_possib_ref + pd_ref_ori[0,0]),np.ones((other.size , sample))*pd_ref_ori[1,0])\
+                ).reshape(2,other.size*sample)))\
+            .reshape(2,other.size,sample)\
+            -stereo_cart_ref.reshape((2,1,1)) \
+        ),axis=0))
+r_other =   np.sqrt(np.sum(np.square(\
+                pol2cart(stereo_sph2pol(\
+                    np.concatenate\
+                            (((pd_other_ori[0,:].reshape((4,1))+ang_possib_other).reshape((1,other.size*sample)),\
+                            np.repeat(pd_other_ori[1,:],sample).reshape((1,-1))) )\
+                    )).reshape((2,other.size,sample))\
+                - stereo_cart_other.reshape((2,-1,1))\
+            ),axis=0))
+
+d_vector = stereo_cart_other.T-stereo_cart_ref.T #[otherx2]
+d = np.sqrt(np.sum(np.square(d_vector),axis=1)).reshape((-1,1)) #[otherx1]
+a = np.divide( np.square(d)+np.square(r_ref)-np.square(r_other) , 2*np.square(d))  #[other x sample]
+mid =   stereo_cart_ref.reshape(2,1,1) + \
+        np.multiply( \
+            d_vector.T.reshape(2,-1,1) , np.repeat(a.reshape(1,other.size,-1),2,axis=0\
+        )) #[2(xy) x other x sample]
+curve =    np.tile(mid,(2,1,1,1))+\
+        np.multiply(\
+            np.stack((np.ones((2,other.size,sample)),-1*np.ones((2,other.size,sample)))),\
+            np.tile(\
+                np.multiply(\
+                    np.tile(np.sqrt(np.square(r_ref)-np.square(a)), (2,1,1)),\
+                    np.divide(d_vector,d).T.reshape((2,other.size,1))\
+                )
+            ,(2,1,1,1)) \
+        )#[2(兩條) x 2(xy) x other x sample]
+
+
+print(curve.shape,'ya')
+# print( np.repeat(pd_other_ori[1,:].reshape((other.size,1)),sample,axis=1 ).shape  ,'hi')
+
+print(stereo_cart_ref.shape)
+print(stereo_cart_other.shape)
+'''
