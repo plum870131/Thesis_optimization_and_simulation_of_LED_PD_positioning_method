@@ -81,105 +81,107 @@ def rodrigue_mulmul(k_vec,ang): #k:[sample,3] ang[sample,]
         + np.multiply((1-np.cos(ang)).reshape(-1,1,1),(np.matmul(K,K))) #angx3x3
     return R #samplex3x3
 
-def cart2sph(cart_v):#3
-    cart = cart_v.reshape((3,1))/np.sqrt(np.sum(np.square(cart_v)))
-    return np.array([np.arccos(cart[2,:]),np.arctan(cart[1,:]/cart[0,:])+(cart[0,:]<0)*(np.pi)])#2x1
+def cart2sph(cart_v):#3x?
+    cart = np.divide(cart_v, np.sqrt(np.sum(np.square(cart_v),axis=0).reshape((1,-1))))
+    return np.array([   np.arccos(cart[2,:])   ,    np.divide( np.arctan(cart[1,:]), cart[0,:]) + (cart[0,:]<0)*(np.pi)   ])#2x?
 
-sample = 50
-ax1 = np.array([1,1,0])
-ax2 = np.array([2,1,0])
-a1 = np.deg2rad(30)
-a2 = np.deg2rad(-20)
-ori_tar = np.deg2rad(np.array([[50,150]])).T
-ori_tar_cart = ori_ang2cart(ori_tar)
+def rotate_y_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
+    rot = np.zeros((ang.size,3,3))
+    rot[:,0,0] = np.cos(ang)
+    rot[:,0,2] = np.sin(ang)
+    rot[:,1,1] = np.ones((ang.size,))
+    rot[:,2,0] = -np.sin(ang)
+    rot[:,2,2] = np.cos(ang)
+    # np.array([[np.cos(ang),0,np.sin(ang)],[0,1,0],[-np.sin(ang),0,np.cos(ang)]])
+    # print(rot)
+    return rot #是一個matrix
+def rotate_z_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
+    rot = np.zeros((ang.size,3,3))
+    rot[:,0,0] = np.cos(ang)
+    rot[:,0,1] = -np.sin(ang)
+    rot[:,1,0] = np.sin(ang)
+    rot[:,1,1] = np.cos(ang)
+    rot[:,2,2] = np.ones((ang.size,))
+    #rot = np.array([[np.cos(ang),-np.sin(ang),0],[np.sin(ang),np.cos(ang),0],[0,0,1]])
+    # print(rot)
+    return rot #是一個matrix
 
-rot1 = rodrigue(ax1,a1)
-o1 = np.matmul(rot1,np.array([0,0,1])).reshape((3,1))
-o11 = (o1[0,:]<0)*(np.pi-2*np.arctan(o1[1,:]/o1[0,:]))
-o1_ori = np.array([np.arccos(o1[2,:]),np.arctan(o1[1,:]/o1[0,:])+(o1[0,:]<0)*(np.pi)])
-o1_new = np.array([np.sin(o1_ori[0,:])*np.cos(o1_ori[1,:]),np.sin(o1_ori[0,:])*np.sin(o1_ori[1,:]),np.cos(o1_ori[0,:])])
-o1_f = stereo_3dto2d(o1)
-
-rot2 = rodrigue(ax2,a2)
-o2 = np.matmul(rot2,np.array([0,0,1])).reshape((3,1))
-o2_f = stereo_3dto2d(o2)
-o2_ori = np.array([np.arccos(o2[2,:]),np.arctan(o2[1,:]/o2[0,:])+(o2[0,:]<0)*(np.pi)])
-o2_new = np.array([np.sin(o2_ori[0,:])*np.cos(o2_ori[1,:]),np.sin(o2_ori[0,:])*np.sin(o2_ori[1,:]),np.cos(o2_ori[0,:])])
+# set environment
 
 
+pd_num = 7
+pd_m = 2
+alpha = np.deg2rad(45)#傾角
+beta = np.deg2rad(360/pd_num)#方位角
+const = 0.35
 
-ang_diff = ang_from_ori(o1_ori,o2_ori)
-in_ang1 = ang_from_ori(ori_tar,o1_ori)
-in_ang2 = ang_from_ori(ori_tar,o2_ori)
-ratio = np.cos(in_ang2)/np.cos(in_ang1)
+ori_tar = np.deg2rad(np.array([[30,20]])).T #2x1
+ori_tar_cart = ori_ang2cart(ori_tar)#3x1
+tar_car_correct = ori_tar_cart
 
-# plane intersection
-n1 = (o2-ratio*o1)/np.sqrt(np.sum(np.square(o2-ratio*o1)))
-check3 = np.dot(n1[:,0],ori_tar_cart[:,0])
+pd_ori_ang = np.stack( (alpha*np.ones(pd_num),(beta*np.arange(1,pd_num+1))),0 )#2x?
+pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
 
-circle_a = np.row_stack(( np.pi/2*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
-ori_a = cart2sph(n1)
-rot_a = rotate_z(ori_a[1,0]) @ rotate_y(ori_a[0,0])
-circle_a_cart = ori_ang2cart(circle_a)
-circle_a_rot = rot_a @ circle_a_cart
-circle_a_rot = circle_a_rot[:,circle_a_rot[2,:]>0]
-circle_a_flat = stereo_3dto2d(circle_a_rot)
-#tar_sol = np.cross()
-
-circle1 = np.row_stack((  in_ang1*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
-circle1_cart = ori_ang2cart(circle1)
-# print(circle_cart)
-# print(circle)
-circle1_rot = np.matmul(rot1,circle1_cart)
-circle1_flat = stereo_3dto2d(circle1_rot)
-
-circle2 = np.row_stack((  in_ang2*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
-circle2_cart = ori_ang2cart(circle2)
-# print(circle_cart)
-# print(circle)
-circle2_rot = np.matmul(rot2,circle2_cart)
-circle2_flat = stereo_3dto2d(circle2_rot)
+pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])
 
 
 
-# sample
-ang1 = np.linspace(np.arccos(1/ratio[0,0]),np.deg2rad(89),sample)
-ang2 = np.arccos(ratio[0,0]*np.cos(ang1))
+in_ang = ang_from_ori(pd_ori_ang,ori_tar)#pdx1
+light = const * np.square(np.cos(in_ang))#pdx1
+
+ref_accu = np.argmin(in_ang)
+other_accu = np.delete(np.array(range(pd_num)),ref_accu)
+
+phi_ref = in_ang[ref_accu,:].reshape((1,1))#1x1
+phi_other = in_ang[other_accu,:]#other x 1
+ratio_accu = np.divide(np.cos(phi_ref),np.cos(phi_other)) #other x 1
 
 
-rr = np.sqrt(np.divide( np.square(np.cos(ang1))+np.square(np.cos(ang2))-2*np.multiply(np.multiply(np.cos(ang1),np.cos(ang2)),np.cos(ang_diff[0,0])) ,np.square(np.sin(ang_diff[0,0]))))
-ang_side = np.arccos(rr) #[sample,]
-ang_1to2 = np.arccos(np.cos(ang1)/rr)
-axis_1to2 = np.cross(o1[:,0],o2[:,0])# 3,
-mid = np.matmul(rodrigue_1mul(axis_1to2,ang_1to2),o1)#sample,3,1
-axis_side = np.cross(mid.reshape((sample,3)),np.tile(axis_1to2,(sample,1)))   #  samplex3
+# from now on calculate
+
+ref = np.argmax(light)
+other = np.delete(np.array(range(pd_num)),ref)
 
 
-p1 = np.matmul(rodrigue_mulmul(axis_side,ang_side),mid) #samplex3x1
-p2 = np.matmul(rodrigue_mulmul(axis_side,-ang_side),mid)
-
-check = np.divide(np.inner(np.squeeze(o2_new,axis=1),np.squeeze(p1,axis=2)),np.inner(np.squeeze(o1_new,axis=1),np.squeeze(p1,axis=2)))
-check2 = np.divide(np.cos(ang2),np.cos(ang1))
-
-pnew= np.concatenate((p1[np.logical_not(np.isnan(p1[:,0,0])),:,0],p2[np.logical_not(np.isnan(p2[:,0,0])),:,0]))
-pnew_nor =pnew-np.mean(pnew,axis=1).reshape(-1,1)
-pnew_cov = np.cov(pnew_nor.T) 
-pnew_e,pnew_ev = np.linalg.eig(pnew_cov)
-
-circle1 = np.row_stack((  in_ang1*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
-circle1_cart = ori_ang2cart(circle1)
-# print(circle_cart)
-# print(circle)
-circle1_rot = np.matmul(rot1,circle1_cart)
-circle1_flat = stereo_3dto2d(circle1_rot)
+data_ref = light[ref,:].reshape((1,1))#1x1
+data_other = light[other,:] #other x 1
 
 
-circle2 = np.row_stack((  in_ang2*np.ones((1,100))  ,np.linspace(0,2*np.pi,100)))
-circle2_cart = ori_ang2cart(circle2)
-# print(circle_cart)
-# print(circle)
-circle2_rot = np.matmul(rot2,circle2_cart)
-circle2_flat = stereo_3dto2d(circle2_rot)
+
+ratio = np.power(np.divide(data_ref, data_other),1/pd_m) #other x 1
+
+
+# n1 = (o2-ratio*o1)/np.sqrt(np.sum(np.square(o2-ratio*o1)))
+nor = np.tile(pd_ori_car[:,ref] ,(1,1))- np.multiply(ratio.T, pd_ori_car[:,other]).T #other x 3
+check = np.inner(nor,ori_tar_cart.T)
+ref_nor_other = np.argmax(data_other)
+ref_nor_all = ref_nor_other + (ref_nor_other >= ref)*1
+tar_car_sol = np.cross( nor[np.delete(np.arange(0,pd_num-1,1),ref_nor_other),:] , nor[ref_nor_other,:].reshape((1,-1)) ) #other-1 x 3
+tar_car_sol = np.divide(tar_car_sol, np.sqrt(np.sum(np.square(tar_car_sol),axis = 1)).reshape((-1,1)))
+tar_car_sol = np.stack((tar_car_sol,-tar_car_sol))
+tar_car_sol = tar_car_sol[np.inner(tar_car_sol, pd_ori_car[:,ref])>0,:]#other-1 x 3
+tar_ori_sol = cart2sph(tar_car_sol.T).T#other-1 x 2
+
+
+
+sample = 100
+circle =  np.stack((in_ang* np.ones((pd_num,sample)),\
+    np.tile(np.linspace(0,2*np.pi,sample),(pd_num,1))))# 2 x pd x sample
+circle_cart = ori_ang2cart(circle.reshape((2,pd_num*sample))).reshape((3,pd_num,sample))# 3 x pd x sample
+circle_rot = pd_rot_mat @ circle_cart.transpose((1,0,2)) # pd x  3 x sample
+# 3 x pd x sample -> pd x 3 x sample
+# pd x 3 x 3
+# pd x  3 x sample
+circle_stereo = stereo_3dto2d(circle_rot.transpose((1,0,2)).reshape((3,pd_num*sample))).reshape((2,pd_num,sample)).transpose((1,0,2))# pd x  2 x sample
+# pd x  2 x sample
+
+
+
+o_stereo = stereo_3dto2d(pd_ori_car)
+
+correct = np.abs((np.inner(tar_car_sol,ori_tar_cart.T)-1))
+print(correct)
+
 '''--------------------------------------------------------------------------------------------------'''
 
 fig = plt.figure(figsize=plt.figaspect(2.))
@@ -196,20 +198,17 @@ y = np.sin(u)*np.sin(v)
 z = np.cos(v)
 ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
 
-l1, = ax.plot(circle1_rot[0,:],circle1_rot[1,:],circle1_rot[2,:],c='g')
-l2, = ax.plot(circle2_rot[0,:],circle2_rot[1,:],circle2_rot[2,:],c='b')
-l4, = ax.plot(circle_a_rot[0,:],circle_a_rot[1,:],circle_a_rot[2,:],c='r')
+l = [[] for j in range(pd_num)]
+p = [[] for j in range(pd_num)]
+t = [[] for j in range(pd_num-2)]
 
-#ax.scatter(mid[:,0,:],mid[:,1,:],mid[:,2,:])
-l5 = ax.scatter(p1[:,0,:],p1[:,1,:],p1[:,2,:],marker='x',c='coral')
-ax.scatter(p2[:,0,:],p2[:,1,:],p2[:,2,:],marker='x',c='coral')
-
-a,b,c = o1
-ax.scatter(a,b,c,marker='x',c='g')
-a,b,c = o2
-ax.scatter(a,b,c,marker='x',c='b')
+for i in range(pd_num):
+    l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
+    p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
+for i in range(pd_num-2):
+    t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
 a,b,c = ori_tar_cart
-l3 = ax.scatter(a,b,c,marker='x',s=100,c='k')
+t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
 
 # ax3d.set_title('Radiant Flux at different distance and angle')
 ax.set_xlabel('x')
@@ -224,50 +223,30 @@ ax.set_xlim(-1.5,1.5)
 ax.set_ylim(-1.5,1.5)
 ax.set_zlim(0,1.5)
 
-ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from normal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
+#ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from normal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
 
-ax = fig.add_subplot(223)
+
+
+ax = fig.add_subplot(212)
 
 ax.axis('equal')
 
-ax.plot(circle1_flat[0,:],circle1_flat[1,:],c='g')
-ax.scatter(o1_f[0,:],o1_f[1,:],c='g')
-ax.plot(circle2_flat[0,:],circle2_flat[1,:],c='b')
-ax.scatter(o2_f[0,:],o2_f[1,:],c='b')
-
-ax.plot(circle_a_flat[0,:],circle_a_flat[1,:],c='r')
-
-a,b = stereo_3dto2d(np.squeeze(p1,axis=2).T)
-ax.scatter(a,b,marker='x',c='coral')
-a,b = stereo_3dto2d(np.squeeze(p2,axis=2).T)
-ax.scatter(a,b,marker='x',c='coral')
+for i in range(pd_num):
+    l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
+    p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
+tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
+for i in range(pd_num-2):
+    t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
 a,b = stereo_3dto2d(ori_tar_cart)
-ax.scatter(a,b,marker='x',c='k',s=100)
+
+t1 = ax.scatter(a,b,marker='x',s=100,c='k')
+
 
 
 ax.grid(True)
 ax.set_title('Stereographic projection')
 
-ax = fig.add_subplot(224)
 
-ax.plot(circle1_rot[0,:],circle1_rot[1,:],c='g')
-ax.plot(circle2_rot[0,:],circle2_rot[1,:],c='b')
-ax.plot(circle_a_rot[0,:],circle_a_rot[1,:],c='r')
-
-#ax.scatter(mid[:,0,:],mid[:,1,:],mid[:,2,:])
-ax.scatter(p1[:,0,:],p1[:,1,:],marker='x',c='coral')
-ax.scatter(p2[:,0,:],p2[:,1,:],marker='x',c='coral')
-
-a,b,c = o1
-ax.scatter(a,b,marker='x',c='g')
-a,b,c = o2
-ax.scatter(a,b,marker='x',c='b')
-a,b,c = ori_tar_cart
-ax.scatter(a,b,marker='x',s=100,c='k')
-
-ax.axis('equal')
-ax.grid(True)
-ax.set_title('polar')
 
 # plt.show()
 
