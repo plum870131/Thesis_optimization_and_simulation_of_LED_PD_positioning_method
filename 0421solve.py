@@ -111,146 +111,178 @@ def rotate_z_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
 
 pd_num = 7
 pd_m = 2
+pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
 alpha = np.deg2rad(45)#傾角
 beta = np.deg2rad(360/pd_num)#方位角
 const = 0.35
 
-ori_tar = np.deg2rad(np.array([[30,20]])).T #2x1
+ori_tar = np.deg2rad(np.array([[70,20]])).T #2x1
 ori_tar_cart = ori_ang2cart(ori_tar)#3x1
 tar_car_correct = ori_tar_cart
 
 pd_ori_ang = np.stack( (alpha*np.ones(pd_num),(beta*np.arange(1,pd_num+1))),0 )#2x?
 pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
 
-pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])
+pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])#pdx3x3
 
 
 
 in_ang = ang_from_ori(pd_ori_ang,ori_tar)#pdx1
-light = const * np.square(np.cos(in_ang))#pdx1
+activated = np.arange(0,pd_num,1)[in_ang.reshape((pd_num,))<pd_view]
+light = const * np.power(  np.cos(in_ang)  ,pd_m)#pdx1
+light[np.delete(np.arange(0,pd_num,1),activated),:] = np.zeros((pd_num-activated.size,1))
 
-ref_accu = np.argmin(in_ang)
-other_accu = np.delete(np.array(range(pd_num)),ref_accu)
+ref_accu = np.argmin(in_ang[activated,:])#activated中的
+other_accu = np.delete(np.arange(0,activated.size,1),ref_accu)#activated中的
+ref_accu_glob = activated[ref_accu]
+other_accu_glob = activated[other_accu]
 
-phi_ref = in_ang[ref_accu,:].reshape((1,1))#1x1
-phi_other = in_ang[other_accu,:]#other x 1
+phi_ref = in_ang[ref_accu_glob,:].reshape((1,1))#1x1
+phi_other = in_ang[other_accu_glob,:]#other x 1
 ratio_accu = np.divide(np.cos(phi_ref),np.cos(phi_other)) #other x 1
 
-
-# from now on calculate
-
-ref = np.argmax(light)
-other = np.delete(np.array(range(pd_num)),ref)
+threshold = 0
 
 
-data_ref = light[ref,:].reshape((1,1))#1x1
-data_other = light[other,:] #other x 1
+# from now on calculate: 只會get到light,pd_m,pd_ori_ang,pd_ori_cart,pd_rot_mat資訊
+def solve_for_1led(light,pd_m,pd_ori_ang,threshold):
+    pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+    pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])#pdx3x3
 
+    filt_l = np.arange(0,pd_num,1)[(light>threshold).flatten()]
+    light_filt = np.tile(light[filt_l,:],(1,1))
+    filt= light_filt.size #other+1
 
+    # 以下light只剩下數值夠大的
+    ref = np.argmax(light_filt)
+    ref_glob = np.array(range(pd_num))[filt_l][ref]
+    other = np.delete(np.array(range(filt)),ref)# in filt_l
+    other_glob = np.array(range(pd_num))[filt_l][other]
 
-ratio = np.power(np.divide(data_ref, data_other),1/pd_m) #other x 1
-
-
-# n1 = (o2-ratio*o1)/np.sqrt(np.sum(np.square(o2-ratio*o1)))
-nor = np.tile(pd_ori_car[:,ref] ,(1,1))- np.multiply(ratio.T, pd_ori_car[:,other]).T #other x 3
-check = np.inner(nor,ori_tar_cart.T)
-ref_nor_other = np.argmax(data_other)
-ref_nor_all = ref_nor_other + (ref_nor_other >= ref)*1
-tar_car_sol = np.cross( nor[np.delete(np.arange(0,pd_num-1,1),ref_nor_other),:] , nor[ref_nor_other,:].reshape((1,-1)) ) #other-1 x 3
-tar_car_sol = np.divide(tar_car_sol, np.sqrt(np.sum(np.square(tar_car_sol),axis = 1)).reshape((-1,1)))
-tar_car_sol = np.stack((tar_car_sol,-tar_car_sol))
-tar_car_sol = tar_car_sol[np.inner(tar_car_sol, pd_ori_car[:,ref])>0,:]#other-1 x 3
-tar_ori_sol = cart2sph(tar_car_sol.T).T#other-1 x 2
+    data_ref = light_filt[ref,:].reshape((1,1))#1x1
+    data_other = light_filt[other,:] #other x 1
 
 
 
-sample = 100
-circle =  np.stack((in_ang* np.ones((pd_num,sample)),\
-    np.tile(np.linspace(0,2*np.pi,sample),(pd_num,1))))# 2 x pd x sample
-circle_cart = ori_ang2cart(circle.reshape((2,pd_num*sample))).reshape((3,pd_num,sample))# 3 x pd x sample
-circle_rot = pd_rot_mat @ circle_cart.transpose((1,0,2)) # pd x  3 x sample
-# 3 x pd x sample -> pd x 3 x sample
-# pd x 3 x 3
-# pd x  3 x sample
-circle_stereo = stereo_3dto2d(circle_rot.transpose((1,0,2)).reshape((3,pd_num*sample))).reshape((2,pd_num,sample)).transpose((1,0,2))# pd x  2 x sample
-# pd x  2 x sample
+    ratio = np.power(np.divide(data_ref, data_other),1/pd_m) #other x 1
+
+
+    # n1 = (o2-ratio*o1)/np.sqrt(np.sum(np.square(o2-ratio*o1)))
+    nor = np.tile(pd_ori_car[:,ref_glob] ,(1,1))- np.multiply(ratio.T, pd_ori_car[:,other_glob]).T #other x 3
+    # check = np.inner(nor,ori_tar_cart.T)
+
+    ref_nor_inother = np.argmax(data_other) #in data other
+    #ref_nor_glob = filt_l[other][ref_nor_inother]
+
+    tar_car_sol = np.cross( nor[np.delete(np.arange(0,other.size,1),ref_nor_inother),:] , nor[ref_nor_inother,:].reshape((1,-1)) ) #other-1 x 3
+    tar_car_sol = np.divide(tar_car_sol, np.sqrt(np.sum(np.square(tar_car_sol),axis = 1)).reshape((-1,1)))
+    tar_car_sol = np.stack((tar_car_sol,-tar_car_sol))
+    tar_car_sol = tar_car_sol[np.inner(tar_car_sol, pd_ori_car[:,ref_glob])>0,:]#other-1 x 3
+    tar_ori_sol = cart2sph(tar_car_sol.T).T#other-1 x 2
+    
+    return tar_car_sol, filt_l
 
 
 
-o_stereo = stereo_3dto2d(pd_ori_car)
-
-correct = np.abs((np.inner(tar_car_sol,ori_tar_cart.T)-1))
+# solve for answer: tar_car_sol #other-1 x 3
+tar_car_sol, filt_l = solve_for_1led(light,pd_m,pd_ori_ang,threshold)
+filt = filt_l.size
+correct = np.isclose(np.inner(tar_car_sol,ori_tar_cart.T) , np.ones((filt-2,1)))
 print(correct)
 
-'''--------------------------------------------------------------------------------------------------'''
-
-fig = plt.figure(figsize=plt.figaspect(2.))
-fig.suptitle('PD and Stereographic Projection')
-
-ax = fig.add_subplot(211, projection='3d')
-ax.set_box_aspect(aspect = (1,1,0.5))
-# ax.set_aspect("auto")
-
-# draw sphere
-u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi/2,20))
-x = np.cos(u)*np.sin(v)
-y = np.sin(u)*np.sin(v)
-z = np.cos(v)
-ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-l = [[] for j in range(pd_num)]
-p = [[] for j in range(pd_num)]
-t = [[] for j in range(pd_num-2)]
-
-for i in range(pd_num):
-    l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
-    p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
-for i in range(pd_num-2):
-    t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
-a,b,c = ori_tar_cart
-t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
-
-# ax3d.set_title('Radiant Flux at different distance and angle')
-ax.set_xlabel('x')
-ax.set_ylabel('y')
-ax.set_zlabel('z')
-
-x, y, z = np.array([0,0,0])
-u, v, w = np.array([0,0,1.5])
-ax.quiver(x,y,z,u,v,w,arrow_length_ratio=0.1, color="black")
-ax.grid(False)
-ax.set_xlim(-1.5,1.5)
-ax.set_ylim(-1.5,1.5)
-ax.set_zlim(0,1.5)
-
-#ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from normal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
 
 
 
-ax = fig.add_subplot(212)
-
-ax.axis('equal')
-
-for i in range(pd_num):
-    l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
-    p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
-tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
-for i in range(pd_num-2):
-    t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
-a,b = stereo_3dto2d(ori_tar_cart)
-
-t1 = ax.scatter(a,b,marker='x',s=100,c='k')
 
 
+def plot_3d_solve_1led(tar_car_sol, filt_l, sample=100):
 
-ax.grid(True)
-ax.set_title('Stereographic projection')
+# generate circles for plots
+    circle =  np.stack((in_ang[filt_l]* np.ones((filt,sample)),\
+        np.tile(np.linspace(0,2*np.pi,sample),(filt,1))))# 2 x filt x sample
+    circle_cart = ori_ang2cart(circle.reshape((2,filt*sample))).reshape((3,filt,sample))# 3 x filt x sample
+    circle_rot = pd_rot_mat[filt_l,:,:] @ circle_cart.transpose((1,0,2)) # filt x  3 x sample
+    # 3 x pd x sample -> pd x 3 x sample
+    # pd x 3 x 3
+    # pd x  3 x sample
+    circle_stereo = stereo_3dto2d(circle_rot.transpose((1,0,2)).reshape((3,filt*sample))).reshape((2,filt,sample)).transpose((1,0,2))# pd x  2 x sample
+    # pd x  2 x sample
+    
+    
+    
+    o_stereo = stereo_3dto2d(pd_ori_car[:,filt_l])
 
 
 
-# plt.show()
 
+    # Generate plot
+    fig = plt.figure(figsize=plt.figaspect(2.))
+    fig.suptitle('PD and Stereographic Projection')
+    
+    ax = fig.add_subplot(211, projection='3d')
+    ax.set_box_aspect(aspect = (1,1,0.5))
+    # ax.set_aspect("auto")
+    
+    # draw sphere
+    u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi/2,20))
+    x = np.cos(u)*np.sin(v)
+    y = np.sin(u)*np.sin(v)
+    z = np.cos(v)
+    ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+    
+    l = [[] for j in range(filt)]
+    p = [[] for j in range(filt)]
+    t = [[] for j in range(filt-2)]
+    
+    for i in range(filt):
+        l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
+        p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
+    for i in range(filt-2):
+        t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
+    a,b,c = ori_tar_cart
+    t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
+    
+    # ax3d.set_title('Radiant Flux at different distance and angle')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    
+    x, y, z = np.array([0,0,0])
+    u, v, w = np.array([0,0,1.5])
+    ax.quiver(x,y,z,u,v,w,arrow_length_ratio=0.1, color="black")
+    ax.grid(False)
+    ax.set_xlim(-1.5,1.5)
+    ax.set_ylim(-1.5,1.5)
+    ax.set_zlim(0,1.5)
+    
+    #ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from normal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
+    
+    
+    
+    ax = fig.add_subplot(212)
+    
+    ax.axis('equal')
+    
+    for i in range(filt):
+        l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
+        p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
+    tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
+    for i in range(filt-2):
+        t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
+    a,b = stereo_3dto2d(ori_tar_cart)
+    
+    t1 = ax.scatter(a,b,marker='x',s=100,c='k')
+    
+    
+    
+    ax.grid(True)
+    ax.set_title('Stereographic projection')
+    
+    
+    
+    # plt.show()
 
+plot_3d_solve_1led(tar_car_sol, filt_l)
 
 
 ''' try to solve grom stereographic
