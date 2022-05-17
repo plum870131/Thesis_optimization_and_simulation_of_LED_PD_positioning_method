@@ -68,7 +68,14 @@ def inv_hom_mat(ang_list, trans):#trans(3,1)
 # 產生k2個rotation matrix
 # shape(k2,3,3) 每個3x3是一個rotation matrix
 def testp_rot_matlist(testp_rot): # testp_rot [[rotx][roty][rotz]] 3x?
-    krot = testp_rot.shape[0]
+    krot = testp_rot.shape[1]
+    out = np.zeros((krot,3,3)) # shape(k2,3,3)
+    for i in range(krot):
+        out[i,:,:] = rotate_mat(testp_rot[:,i])
+    return out ## shape(k2,3,3) 每個3x3是一個rotation matrix
+
+def testp_euler_matlist(testp_rot): # testp_rot [[roll][pitch][yaw]] 3x?
+    krot = testp_rot.shape[1]
     out = np.zeros((krot,3,3)) # shape(k2,3,3)
     for i in range(krot):
         out[i,:,:] = rotate_mat(testp_rot[:,i])
@@ -78,11 +85,9 @@ def testp_rot_matlist(testp_rot): # testp_rot [[rotx][roty][rotz]] 3x?
 # pos是多個點 3x?
 # testp_rot是[[rotx][roty][rotz]] ，多個轉換參數
 # return krotx3xm
-def global_testp_after_rot(pos, testp_rot): #pos(or ori)[3x?] #testp_rot (krot,3,3)
-    rot_list = testp_rot_matlist(testp_rot)
-    out = np.zeros((testp_rot[0].size,3,pos[0].size))
-    for i in range(testp_rot[0].size):
-        out[i,:,:] = np.dot(rot_list[i],pos)
+def global_testp_after_rot(pos, testp_rot): #pos(or ori)[3x?] #testp_rot (krot,3)
+    rot_list = testp_rot_matlist(testp_rot) # (krot,3,3)
+    out = rot_list @ pos
     return out # krotx3xm
 
 # out(krot,kpos,3,m) 
@@ -90,21 +95,58 @@ def global_testp_trans(pos , testp_pos):
     # pos [krotx3xm] or [3xm]
     # testp_pos [3xkpos]
     if len(pos.shape)==3:
-        kpos = testp_pos[0].size # kpos
+        kpos = testp_pos[1].size # kpos
         krot =  pos.shape[0] #krot
         m =  pos.shape[2] #led_num
 
-        out = np.zeros((krot,kpos,3,m))
-        # out = np.zeros((pos.shape[0],testp_pos[0].size,3,pos.shape[2]))
-        for i in range(krot):
-            out[i,:,:,:]= np.tile(pos[i,:,:],(kpos,1,1))+np.tile(testp_pos,(m,1,1)).transpose(2,1,0)
-        return out
+        out = np.tile(pos,(kpos,1,1,1)).transpose((0,1,3,2))+\
+              np.tile(testp_pos.T,(krot,pos.shape[2],1,1)).transpose((2,0,1,3))
+        return out # kpos krot m 3
     elif len(pos.shape)==2:
         print('error in global_testp_trans')
 
 
 '''計算d,in_ang,out_ang'''
 def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num):
+    #glob_led_pos [krot kpos 3 led_num]
+    #glob_led_ori [krot kpos 3 led_num]
+    #pd_pos [3 pd_num]
+    #pd_ori_car [3 pd_num]
+    #dis = np.zeros((krot,kpos,led_num,pd_num))
+    in_ang = np.zeros((krot,kpos,led_num,pd_num))
+    out_ang = np.zeros((krot,kpos,led_num,pd_num))
+
+    #pos_delta = np.zeros((krot,kpos,led_num,pd_num,3)) #led-pd: pd pointint to led
+    pos_delta = np.tile(glob_led_pos,(pd_num,1,1,1,1)).transpose((1,2,4,0,3)) \
+        - np.tile(pd_pos,(krot,kpos,led_num,1,1)).transpose((0,1,2,4,3))
+    dis = np.sqrt(np.sum(np.square(pos_delta),axis=4)) # krot,kpos,led_num,pd_num
+    in_ang = np.inner(pos_delta,pd_ori_car.T)
+    for pd in range(pd_num):
+        for led in range(led_num):
+            # (x-x)^2 sqrt
+            # glob_led_pos[:,:,:,led]  krotxkposx3
+            pd_extend = np.tile(pd_pos,(krot,kpos,1,1))
+            pos_delta[:,:,led,pd,:] = glob_led_pos[:,:,:,led]-pd_extend[:,:,:,pd]#krotxkposx3
+            dis[:,:,led,pd] = np.sqrt(np.square(pos_delta[:,:,led,pd,:]).sum(axis=2))
+            # in_ang[:,:,led,pd]= 
+
+    for pd in range(pd_num):
+        # 計算該pd與all testpoints的角度
+        in_ang[:,:,:,pd] = pos_delta[:,:,:,pd,0]*pd_ori_car[0,pd]+pos_delta[:,:,:,pd,1]*pd_ori_car[1,pd]+pos_delta[:,:,:,pd,2]*pd_ori_car[2,pd]
+
+        # krot kpos led pd  #glob_led_ori(krot,3,led_num) 
+        # out_ang[:,:,:,pd] = -pos_delta[:,:,:,pd,0]* glob_led_ori[,0,] - pos_delta[:,:,:,pd,1]*   -pos_delta[:,:,:,pd,2]*
+    for led in range(led_num):
+        for r in range(krot):
+            out_ang[r,:,led,:] = -pos_delta[r,:,led,:,0]*glob_led_ori[r,0,led] - pos_delta[r,:,led,:,1]*glob_led_ori[r,1,led] - pos_delta[r,:,led,:,2]*glob_led_ori[r,2,led]
+    in_ang = np.arccos(np.divide(in_ang,dis))
+    out_ang = np.arccos(np.divide(out_ang,dis))
+    
+    return dis,in_ang,out_ang
+'''
+def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num):
+    #glob_led_pos [krot kpos 3 led_num]
+    #glob_led_ori [krot kpos 3 led_num]
     dis = np.zeros((krot,kpos,led_num,pd_num))
     in_ang = np.zeros((krot,kpos,led_num,pd_num))
     out_ang = np.zeros((krot,kpos,led_num,pd_num))
@@ -133,7 +175,7 @@ def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,p
     out_ang = np.arccos(np.divide(out_ang,dis))
     
     return dis,in_ang,out_ang
-
+'''
 '''計算strength'''
 def cal_strength_current(dis,in_ang,out_ang,led_para,pd_para):
     # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]

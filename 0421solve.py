@@ -108,23 +108,253 @@ def rotate_z_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
 
 # set environment
 
+threshold = 0
 
 pd_num = 7
-pd_m = 2
+pd_m = 3
 pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
-alpha = np.deg2rad(45)#傾角
-beta = np.deg2rad(360/pd_num)#方位角
+pd_alpha = np.deg2rad(45)#傾角
+pd_beta = np.deg2rad(360/pd_num)#方位角
 const = 0.35
 
-ori_tar = np.deg2rad(np.array([[70,20]])).T #2x1
-ori_tar_cart = ori_ang2cart(ori_tar)#3x1
-tar_car_correct = ori_tar_cart
+led_num = 5
+led_m = 3
+led_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
+led_alpha = np.deg2rad(45)#傾角
+led_beta = np.deg2rad(360/led_num)#方位角
 
-pd_ori_ang = np.stack( (alpha*np.ones(pd_num),(beta*np.arange(1,pd_num+1))),0 )#2x?
+pd_area = 1
+led_pt = 1
+
+# =============================================================================
+# ori_tar = np.deg2rad(np.array([[30,20]])).T #2x1
+# ori_tar_cart = ori_ang2cart(ori_tar)#3x1
+# tar_car_correct = ori_tar_cart
+# =============================================================================
+
+# config
+pd_pos = np.tile(np.array([[0,0,0]]),(pd_num,1)).T # 3xpd_num
+pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
 pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
-
 pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])#pdx3x3
 
+led_pos = np.tile(np.array([[0,0,0]]).T,(1,led_num))
+led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
+led_ori_car = ori_ang2cart(led_ori_ang) #3xpd
+led_rot_mat = rotate_z_mul(led_ori_ang[1,:]) @ rotate_y_mul(led_ori_ang[0,:])#pdx3x3
+
+
+# sample point
+
+testp_pos = np.array([[0,1,1]]).T # 3x?
+kpos = testp_pos.shape[1]
+testp_rot = np.array([[np.pi,0,0]]).T
+krot = testp_rot.shape[1]
+
+#(kpos,krot,led_num,3)  # kpos krot m 3
+glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
+glob_led_ori = np.tile(global_testp_after_rot(led_ori_car,testp_rot), (kpos,1,1,1)).transpose((0,1,3,2))
+
+
+def interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car):
+    (kpos,krot,led_num,_) = glob_led_pos.shape
+    pd_num = pd_pos.shape[1]
+    
+    pos_delta = np.tile(glob_led_pos,(pd_num,1,1,1,1)).transpose((1,2,3,0,4)) \
+        - np.tile(pd_pos.T,(kpos,krot,led_num,1,1))
+    dis = np.sqrt(np.sum(np.square(pos_delta),axis=4)) # krot,kpos,led_num,pd_num
+    #print(dis)
+    in_ang = np.arccos(np.divide(np.sum(np.multiply( np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1)), pos_delta), axis=4), dis))
+    out_ang = np.arccos( np.divide(np.sum(np.multiply(    -pos_delta,np.tile(glob_led_ori,(pd_num,1,1,1,1)).transpose((1,2,3,0,4))   ),axis=4), dis ) )
+
+    # krot,kpos,led_num,pd_num
+    return dis,in_ang,out_ang
+
+# krot,kpos,led_num,pd_num
+dis,in_ang,out_ang = interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car)
+
+# 在view angle外的寫nan
+in_ang_view = np.empty_like(in_ang)
+in_ang_view[:] = in_ang
+in_ang_view[in_ang_view >= pd_view] = np.nan
+
+out_ang_view = np.empty_like(out_ang)
+out_ang_view[:] = out_ang
+out_ang_view[out_ang_view >= led_view] = np.nan
+
+light = pd_area * led_pt * (led_num+1)/(2*np.pi) * np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
+# light = np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
+light[np.isnan(light)] = 0
+
+# =============================================================================
+# 這裡處理加上noise的部分
+# =============================================================================
+
+
+# =============================================================================
+# filter掉訊號中小於threshold的部分：nan
+# =============================================================================
+# krot,kpos,led_num,pd_num
+light_f = np.empty_like(light)
+light_f[light_f <= threshold] = np.nan
+
+
+# =============================================================================
+# 先處理單個sample point
+# =============================================================================
+
+light_f = light_f.squeeze()
+
+
+# =============================================================================
+# m,n = a.shape
+# del_idx = np.arange(n)*m + k
+# print(a)
+# print(a.ravel())
+# outa = np.delete(a.ravel(),del_idx,axis=0).reshape(m,-1)
+# =============================================================================
+
+
+# =============================================================================
+# 判斷特定LED是否有>=三個PD接收（才能判斷方位）
+# =============================================================================
+led_usable = np.sum(~np.isnan(light_f),axis=1)>2 #led,
+
+light_led = light_f[led_usable,:] #ledu, pd
+
+# =============================================================================
+# 取強度最大者作為ref1，建立平面的基準
+# 並利用mask將light_led分成ref和other
+# => 計算ratio
+# =============================================================================
+ref1 = np.nanargmax(light_led, axis = 1) #ledu,
+mask = np.full(light_led.shape, False)
+mask[np.arange(led_usable.sum()),ref1] = True
+
+data_ref = light_led[mask].reshape(-1,1)#ledu 1
+data_other = light_led[~mask].reshape(ref1.sum(),-1)# ledu other
+# ref/other
+ratio = np.power(np.divide(data_ref, data_other),1/pd_m) #led_u x other
+# in_ang  krot,kpos,led_num,pd_num
+check_out_ang = out_ang_view.squeeze()
+check_dis = dis.squeeze()
+in_ang_t = in_ang_view.squeeze()
+in_ang_t = in_ang_t[led_usable,:]
+in_ang_t1 = in_ang_t[mask].reshape(-1,1)
+in_ang_t2 = in_ang_t[~mask].reshape(ref1.sum(),-1)
+ratio_cor = np.divide(np.cos(in_ang_t1),np.cos(in_ang_t2))
+# =============================================================================
+# 計算平面normal vector[ledu other 3]
+# =============================================================================
+#ledu x other x 3
+nor = np.tile(pd_ori_car.T,(led_usable.sum(),1,1))[np.tile(mask,(3,1,1)).transpose(1,2,0)].reshape(led_usable.sum(),1,3)\
+    - np.multiply(\
+                np.tile(pd_ori_car.T,(led_usable.sum(),1,1))[np.tile(~mask,(3,1,1)).transpose(1,2,0)].reshape(led_usable.sum(),-1,3)\
+                ,ratio.reshape(led_usable.sum(),-1,1))
+check_dot = (np.inner(np.array([[0,1,1]]),nor))
+check_dot = np.sum(~(np.isclose(check_dot,np.zeros((3,6)))|np.isnan(check_dot)))
+print('-----------------------')
+print('False normal vector:' ,check_dot)
+print('-----------------------')
+# =============================================================================
+# 取data_other強度最大者作為ref2，當cross的基準
+# 並利用mask2將data other分兩半
+# => 計算cross
+# =============================================================================
+ref2 = np.nanargmax(data_other, axis = 1)
+mask2 = np.full(data_other.shape, False)
+mask2[np.arange(led_usable.sum()),ref2] = True
+
+nor_ref = nor[mask2].reshape(-1,1,3) #ledu,1,3
+nor_other = nor[~mask2].reshape(led_usable.sum(),-1,3) #ledu,other-1,3
+cross = np.cross(np.tile(nor_ref,(1,pd_num-2,1)),nor_other)#ledu,other-1,3
+cross = np.divide(cross, np.tile(np.sqrt(np.sum(np.square(cross),axis=2)),(1,1,1)).transpose(1,2,0))#ledu,other-1,3
+cross_pstv = np.tile(pd_ori_car.T,(led_usable.sum(),1,1))  [np.tile(mask,(3,1,1)).transpose(1,2,0)].reshape((-1,3)) #ledu 3
+cross_mask = np.sum(np.multiply(cross, np.tile(cross_pstv,(pd_num-2,1,1)).transpose(1,0,2)),axis=2)<0#ledu other-1
+cross = np.where(np.tile(cross_mask,(3,1,1)).transpose(1,2,0),-cross,cross)
+#cross [ledu other-1 3]
+
+
+check_cross = (np.sum(np.multiply(cross,np.tile(testp_pos.T/np.sqrt(np.sum(np.square(testp_pos))),(led_usable.sum(),pd_num-2,1))),axis=2))
+check_cross = np.sum(~(np.isnan(check_cross) | np.isclose(check_cross,np.ones((led_usable.sum(),pd_num-2)))))
+
+
+
+print('-----------------------')
+print('False cross vector:' ,check_cross)
+print('-----------------------')
+
+
+
+
+
+
+
+# from now on calculate: 只會get到light,pd_m,pd_ori_ang,pd_ori_cart,pd_rot_mat資訊
+def solve_for_1led(light,pd_m,pd_ori_ang,threshold):
+    pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+    pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])#pdx3x3
+    
+    filt_l = np.arange(0,pd_num,1)[(light>threshold).flatten()]
+    light_filt = np.tile(light[filt_l,:],(1,1))
+    filt= light_filt.size #other+1
+    
+    if filt<3:
+        print('not enough pd')
+    # 以下light只剩下數值夠大的
+    ref = np.argmax(light_filt)
+    ref_glob = np.array(range(pd_num))[filt_l][ref]
+    other = np.delete(np.array(range(filt)),ref)# in filt_l
+    other_glob = np.array(range(pd_num))[filt_l][other]
+
+    data_ref = light_filt[ref,:].reshape((1,1))#1x1
+    data_other = light_filt[other,:] #other x 1
+
+
+
+    ratio = np.power(np.divide(data_ref, data_other),1/pd_m) #other x 1
+
+
+    # n1 = (o2-ratio*o1)/np.sqrt(np.sum(np.square(o2-ratio*o1)))
+    nor = np.tile(pd_ori_car[:,ref_glob] ,(1,1))- np.multiply(ratio.T, pd_ori_car[:,other_glob]).T #other x 3
+    # check = np.inner(nor,ori_tar_cart.T)
+
+    ref_nor_inother = np.argmax(data_other) #in data other
+    #ref_nor_glob = filt_l[other][ref_nor_inother]
+
+    tar_car_sol = np.cross( nor[np.delete(np.arange(0,other.size,1),ref_nor_inother),:] , nor[ref_nor_inother,:].reshape((1,-1)) ) #other-1 x 3
+    tar_car_sol = np.divide(tar_car_sol, np.sqrt(np.sum(np.square(tar_car_sol),axis = 1)).reshape((-1,1)))
+    tar_car_sol = np.stack((tar_car_sol,-tar_car_sol))
+    tar_car_sol = tar_car_sol[np.inner(tar_car_sol, pd_ori_car[:,ref_glob])>0,:]#other-1 x 3
+    tar_ori_sol = cart2sph(tar_car_sol.T).T#other-1 x 2
+    
+    return tar_car_sol, filt_l
+
+
+
+# =============================================================================
+# # solve for answer: tar_car_sol #other-1 x 3
+# tar_car_sol, filt_l = solve_for_1led(light,pd_m,pd_ori_ang,threshold)
+# filt = filt_l.size
+# correct = np.isclose(np.inner(tar_car_sol,ori_tar_cart.T) , np.ones((filt-2,1)))
+# # print(correct)
+# =============================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+'''
+
+
+#in global
 
 
 in_ang = ang_from_ori(pd_ori_ang,ori_tar)#pdx1
@@ -148,11 +378,13 @@ threshold = 0
 def solve_for_1led(light,pd_m,pd_ori_ang,threshold):
     pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
     pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])#pdx3x3
-
+    
     filt_l = np.arange(0,pd_num,1)[(light>threshold).flatten()]
     light_filt = np.tile(light[filt_l,:],(1,1))
     filt= light_filt.size #other+1
-
+    
+    if filt<3:
+        print('not enough pd')
     # 以下light只剩下數值夠大的
     ref = np.argmax(light_filt)
     ref_glob = np.array(range(pd_num))[filt_l][ref]
@@ -188,7 +420,7 @@ def solve_for_1led(light,pd_m,pd_ori_ang,threshold):
 tar_car_sol, filt_l = solve_for_1led(light,pd_m,pd_ori_ang,threshold)
 filt = filt_l.size
 correct = np.isclose(np.inner(tar_car_sol,ori_tar_cart.T) , np.ones((filt-2,1)))
-print(correct)
+# print(correct)
 
 
 
@@ -283,6 +515,20 @@ def plot_3d_solve_1led(tar_car_sol, filt_l, sample=100):
     # plt.show()
 
 plot_3d_solve_1led(tar_car_sol, filt_l)
+'''
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ''' try to solve grom stereographic
