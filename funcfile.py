@@ -202,3 +202,75 @@ def bias(strength,bias_val): # strength[(krot, kpos, led_num, pd_num)] bias:int
 
 def lamb_order(semi): #semi power angle in degree
     return -1*np.log(2)/np.log(np.cos(np.deg2rad(semi)))
+
+
+def cal_ori(light_f,obs_m,obs_num,obs_ori):
+    pd_num = obs_num
+    pd_m = obs_m
+    pd_ori_car = obs_ori
+    led_usable = np.sum(~np.isnan(light_f),axis=1)>2 #led,
+    light_led = light_f[led_usable,:] #ledu, pd
+    
+    # =============================================================================
+    # 取強度最大者作為ref1，建立平面的基準
+    # 並利用mask將light_led分成ref和other
+    # => 計算ratio
+    # =============================================================================
+    ref1 = np.nanargmax(light_led, axis = 1) #ledu,
+    mask = np.full(light_led.shape, False)
+    mask[np.arange(led_usable.sum()),ref1] = True
+
+    data_ref = light_led[mask].reshape(-1,1)#ledu 1
+    data_other = light_led[~mask].reshape(ref1.sum(),-1)# ledu other
+    # ref/other
+    ratio = np.power(np.divide(data_ref, data_other),1/pd_m) #led_u x other
+    # in_ang  krot,kpos,led_num,pd_num
+
+    # =============================================================================
+    # 計算平面normal vector[ledu other 3]
+    # =============================================================================
+    #ledu x other x 3
+    nor = np.tile(pd_ori_car.T,(led_usable.sum(),1,1))[np.tile(mask,(3,1,1)).transpose(1,2,0)].reshape(led_usable.sum(),1,3)\
+        - np.multiply(\
+                    np.tile(pd_ori_car.T,(led_usable.sum(),1,1))[np.tile(~mask,(3,1,1)).transpose(1,2,0)].reshape(led_usable.sum(),-1,3)\
+                    ,ratio.reshape(led_usable.sum(),-1,1))
+# =============================================================================
+#     check_dot = (np.inner(np.array([[0,1,1]]),nor))
+#     check_dot = np.sum(~(np.isclose(check_dot,np.zeros((3,6)))|np.isnan(check_dot)))
+#     print('-----------------------')
+#     print('False normal vector:' ,check_dot)
+#     print('-----------------------')
+# =============================================================================
+    # =============================================================================
+    # 取data_other強度最大者作為ref2，當cross的基準
+    # 並利用mask2將data other分兩半
+    # => 計算cross
+    # =============================================================================
+    ref2 = np.nanargmax(data_other, axis = 1)
+    mask2 = np.full(data_other.shape, False)
+    mask2[np.arange(led_usable.sum()),ref2] = True
+
+    nor_ref = nor[mask2].reshape(-1,1,3) #ledu,1,3
+    nor_other = nor[~mask2].reshape(led_usable.sum(),-1,3) #ledu,other-1,3
+    cross = np.cross(np.tile(nor_ref,(1,pd_num-2,1)),nor_other)#ledu,other-1,3
+    cross = np.divide(cross, np.tile(np.sqrt(np.sum(np.square(cross),axis=2)),(1,1,1)).transpose(1,2,0))#ledu,other-1,3
+    cross_pstv = np.tile(pd_ori_car.T,(led_usable.sum(),1,1))  [np.tile(mask,(3,1,1)).transpose(1,2,0)].reshape((-1,3)) #ledu 3
+    cross_mask = np.sum(np.multiply(cross, np.tile(cross_pstv,(pd_num-2,1,1)).transpose(1,0,2)),axis=2)<0#ledu other-1
+    cross = np.where(np.tile(cross_mask,(3,1,1)).transpose(1,2,0),-cross,cross)
+    #cross [ledu other-1 3]
+
+
+# =============================================================================
+#     check_cross = (np.sum(np.multiply(cross,np.tile(testp_pos.T/np.sqrt(np.sum(np.square(testp_pos))),(led_usable.sum(),pd_num-2,1))),axis=2))
+#     check_cross = np.sum(~(np.isnan(check_cross) | np.isclose(check_cross,np.ones((led_usable.sum(),pd_num-2)))))
+#     print('-----------------------')
+#     print('False cross vector:' ,check_cross)
+#     print('-----------------------')
+# =============================================================================
+
+
+
+
+
+
+
