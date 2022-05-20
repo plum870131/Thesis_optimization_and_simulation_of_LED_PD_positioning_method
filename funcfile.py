@@ -270,7 +270,122 @@ def cal_ori(light_f,obs_m,obs_num,obs_ori):
 
 
 
+def ang_from_ori(a_ang,b_ang):#[2xa] [2xb]
+    # a_angg = np.transpose(np.array([a_ang.T]*b_ang.shape[1]),(1,0,2))
+    a = np.tile(a_ang,(b_ang.shape[1],1,1)).transpose(1,2,0)
+    # print(a_ang.shape,'a')
+    # b_angg = np.array([b_ang.T]*a_ang.shape[0])
+    b = np.tile(b_ang,(a_ang.shape[1],1,1)).transpose(1,0,2)
+    # print(b_ang.shape,'a')
+    out = np.arccos(\
+            np.multiply(np.multiply(np.sin(a[0,:,:]),np.sin(b[0,:,:])), np.cos(a[1,:,:]-b[1,:,:]))+\
+            np.multiply(np.cos(a[0,:,:]),np.cos(b[0,:,:])))
+    # out = np.arccos(  np.multiply( np.multiply\
+    #     (np.sin(a_angg[:,:,0]),np.sin(b_angg[:,:,0])), np.cos(a_angg[:,:,1]-b_angg[:,:,1]))  + \
+    #     np.multiply(np.cos(a_angg[:,:,0]), np.cos(b_angg[:,:,0]))  )
+    # print(out.shape,'out')
+    return out #[axb]
+
+# def ang_btw(a1,b1,a2,b2): #alpha1,beta1,alpha2,beta2
+#     a1,b1,a2,b2 = np.deg2rad(np.array([a1,b1,a2,b2]))
+#     return np.arccos(np.sin(a1)*np.sin(a2)*np.cos(b1-b2)+np.cos(a1)*np.cos(a2))
+
+def stereo_sph2pol(ori):#ori[2x?]
+    new = np.zeros(ori.shape)
+    new[0,:] = np.divide(np.sin(ori[0,:]), 1+np.cos(ori[0,:]) )
+    new[1,:] = ori[1,:]
+    return new #[2x?]
+def stereo_pol2sph(pol): #pol:R,ang
+    out = np.zeros(pol.shape)
+    out[0,:] = 2 * np.arctan(pol[0,:])
+    out[1,:] = pol[1,:]
+    return out                     
+def stereo_3dto2d(p3d):#p3d[3x?]
+    p2d = np.divide( p3d[:2,:] , (1+p3d[2,:]) )
+    return p2d
+def stereo_2dto3d(p2d): #p2d[2x?]
+    out = np.stack( (2*p2d[0,:], 2*p2d[1,:], 1-np.sum(np.square(p2d),axis=0)) , 0 ) #[3x?]
+    return np.divide(out, 1+ np.sum(np.square(p2d),axis=0) ) #[3x?]
+def pol2cart(pol): #pol(R,ang) [2x?]
+    return np.multiply(np.stack( ( np.cos(pol[1,:]), np.sin(pol[1,:])  ),0 ), pol[0,:] )
+
+def rodrigue(k_vec1,ang): #k:[3]
+    k_vec = k_vec1.reshape((3,))
+    k = (1/np.sqrt(np.sum(np.square(k_vec))))*k_vec
+    K = np.array([[0, -k[2], k[1]],[k[2], 0, -k[0]],[-k[1], k[0], 0]])
+    I = np.eye(3)
+    R = I + np.sin(ang)*K + (1-np.cos(ang))*(np.matmul(K,K)) #3x3
+    return R #3x3
+def rodrigue_1mul(k_vec1,ang): #k:[3]
+    k_vec = k_vec1.reshape((3,))
+    k = (1/np.sqrt(np.sum(np.square(k_vec))))*k_vec
+    K = np.array([[0, -k[2], k[1]],[k[2], 0, -k[0]],[-k[1], k[0], 0]])
+    I = np.eye(3)
+    R = np.tile(I,(ang.size,1,1)) \
+        + np.multiply(np.sin(ang).reshape(-1,1,1),np.tile(K,(ang.size,1,1))) \
+        + np.multiply((1-np.cos(ang)).reshape(-1,1,1),np.tile((np.matmul(K,K)),(ang.size,1,1))) #angx3x3
+    return R #angx3x3
+
+def rodrigue_mulmul(k_vec,ang): #k:[sample,3] ang[sample,]
+    k = np.multiply((1/np.sqrt(np.sum(np.square(k_vec),axis=1))).reshape((-1,1)),k_vec) #sample,
+    K = np.zeros((ang.size,3,3))#np.array([[0, -k[2], k[1]],[k[2], 0, -k[0]],[-k[1], k[0], 0]]) #sample,3,3
+    K[:,0,1] = -k[:,2]
+    K[:,0,2] = k[:,1]
+    K[:,1,0] = k[:,2]
+    K[:,1,2] = -k[:,0]
+    K[:,2,0] = -k[:,1]
+    K[:,2,1] = k[:,0]
+    I = np.eye(3)
+    R = np.tile(I,(ang.size,1,1)) \
+        + np.multiply(np.sin(ang).reshape(-1,1,1),K) \
+        + np.multiply((1-np.cos(ang)).reshape(-1,1,1),(np.matmul(K,K))) #angx3x3
+    return R #samplex3x3
+
+def cart2sph(cart_v):#3x?
+    cart = np.divide(cart_v, np.sqrt(np.sum(np.square(cart_v),axis=0).reshape((1,-1))))
+    return np.array([   np.arccos(cart[2,:])   ,    np.divide( np.arctan(cart[1,:]), cart[0,:]) + (cart[0,:]<0)*(np.pi)   ])#2x?
+
+def rotate_y_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
+    rot = np.zeros((ang.size,3,3))
+    rot[:,0,0] = np.cos(ang)
+    rot[:,0,2] = np.sin(ang)
+    rot[:,1,1] = np.ones((ang.size,))
+    rot[:,2,0] = -np.sin(ang)
+    rot[:,2,2] = np.cos(ang)
+    # np.array([[np.cos(ang),0,np.sin(ang)],[0,1,0],[-np.sin(ang),0,np.cos(ang)]])
+    # print(rot)
+    return rot #是一個matrix
+def rotate_z_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
+    rot = np.zeros((ang.size,3,3))
+    rot[:,0,0] = np.cos(ang)
+    rot[:,0,1] = -np.sin(ang)
+    rot[:,1,0] = np.sin(ang)
+    rot[:,1,1] = np.cos(ang)
+    rot[:,2,2] = np.ones((ang.size,))
+    #rot = np.array([[np.cos(ang),-np.sin(ang),0],[np.sin(ang),np.cos(ang),0],[0,0,1]])
+    # print(rot)
+    return rot #是一個matrix
 
 
+def interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car):
+    (kpos,krot,led_num,_) = glob_led_pos.shape
+    pd_num = pd_pos.shape[1]
+    
+    pos_delta = np.tile(glob_led_pos,(pd_num,1,1,1,1)).transpose((1,2,3,0,4)) \
+        - np.tile(pd_pos.T,(kpos,krot,led_num,1,1))
+    dis = np.sqrt(np.sum(np.square(pos_delta),axis=4)) # krot,kpos,led_num,pd_num
+    #print(dis)
+    in_ang = np.arccos(np.divide(np.sum(np.multiply( np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1)), pos_delta), axis=4), dis))
+    out_ang = np.arccos( np.divide(np.sum(np.multiply(    -pos_delta,np.tile(glob_led_ori,(pd_num,1,1,1,1)).transpose((1,2,3,0,4))   ),axis=4), dis ) )
+
+    # krot,kpos,led_num,pd_num
+    return dis,in_ang,out_ang
+
+
+def filter_view_angle(mat,ang):
+    mat_view = np.empty_like(mat)
+    mat_view[:] = mat
+    mat_view[mat_view >= ang] = np.nan
+    return mat_view
 
 
