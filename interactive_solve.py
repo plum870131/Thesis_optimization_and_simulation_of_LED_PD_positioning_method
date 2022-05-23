@@ -125,7 +125,9 @@ def solve_mulmul(testp_pos,testp_rot):
     print(ledu,pdu)
     
     if (ledu<1 or pdu<1):
-        print('888')
+# =============================================================================
+#         print('888')
+# =============================================================================
         return None,None,None,None
     
     # print('Led, Pd usable amount: ',ledu,pdu)
@@ -290,18 +292,20 @@ z = 0.1*np.cos(v)
 sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
 ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
 
-arrow = 0.2*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
+arrow = 0.5*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
 ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=[0.2,0.5], color=["r",'g','b'])
 arrow_rot = rotate_mat(testp_rot) @ arrow
 axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
 
+
 vec, dis,ledu,pdu = solve_mulmul(testp_pos,testp_rot)
 #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
 if type(vec)!=type(None):
-    ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
-else: ans = ax.text2D(-0.14,-0.16,'No Answer',transform=ax.transAxes,color='r')
+    ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
+else: ans = ax.text2D(-0.14,-0.16,'No Answer',transform=ax.transAxes,color='k')
 #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
 #print(vec,dis)
+text_item = ax.text(-2,-2,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}')
 
 # Draw the initial plot
 # The 'line' variable is used for modifying the line later
@@ -338,8 +342,9 @@ def sliders_on_changed(val):
     axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color=["r",'g','b'])
     vec, dis,ledu,pdu = solve_mulmul(\
                     np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T, np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T)
+    text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}')
     if type(vec)!=type(None):
-        ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
+        ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
     else: ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
     #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
     #ax.text2D(0,0,'No Answer',transform=ax.transAxes)
