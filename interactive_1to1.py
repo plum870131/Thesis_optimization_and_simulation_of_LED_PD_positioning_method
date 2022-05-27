@@ -12,19 +12,21 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 
 # set environment
-def solve_mulmul(testp_pos,testp_rot,led_num,pd_num):
+def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     threshold = 0
     led_num = int(led_num)
     pd_num = int(pd_num)
+    led_m = int(led_m)
+    pd_m = int(pd_m)
     #pd_num = 7
-    pd_m = 3
+    #pd_m = 3
     pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
     pd_alpha = np.deg2rad(35)#傾角
     pd_beta = np.deg2rad(360/pd_num)#方位角
     
     
     #led_num = 5
-    led_m = 10
+    # led_m = 10
     led_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
     led_alpha = np.deg2rad(45)#傾角
     led_beta = np.deg2rad(360/led_num)#方位角
@@ -258,7 +260,8 @@ testp_rot = np.array([[np.pi,0,0]]).T
 #krot = testp_rot.shape[1]
 pd_num = 7
 led_num = 5
-
+led_m = 3
+pd_m = 3
 
 
 
@@ -300,7 +303,7 @@ arrow_rot = rotate_mat(testp_rot) @ arrow
 axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
 
 
-vec, dis,ledu,pdu = solve_mulmul(testp_pos,testp_rot,led_num,pd_num)
+vec, dis,ledu,pdu = solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m)
 #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
 if type(vec)!=type(None):
     ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
@@ -318,17 +321,17 @@ text_item = ax.text(-2,-2,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}')
 # =============================================================================
 
 # Add two sliders for tweaking the parameters
-text = ['x','y','z','roll','pitch','yaw','led amount','pd amount']
-init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num))
-min_val = [-1.5,-1.5,0,0,0,0,3,3]
-max_val = [1.5,1.5,3,2*np.pi,2*np.pi,2*np.pi,20,20]
+text = ['x','y','z','roll','pitch','yaw','led amount','pd amount','led m','pd m']
+init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num,led_m,pd_m))
+min_val = [-1.5,-1.5,0,0,0,0,3,3,2,2]
+max_val = [1.5,1.5,3,2*np.pi,2*np.pi,2*np.pi,20,20,70,70]
 sliders = []
-for i in np.arange(8):
+for i in np.arange(len(min_val)):
 
     axamp = plt.axes([0.84, 0.8-(i*0.05), 0.12, 0.02])
     # Slider
     # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
-    if i ==6|i==7:
+    if i >5:
         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i],valstep=1)
     else:
         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
@@ -347,7 +350,7 @@ def sliders_on_changed(val):
     sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
     axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color=["r",'g','b'])
     vec, dis,ledu,pdu = solve_mulmul(\
-                    np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T, np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T,sliders[6].val,sliders[7].val)
+                    np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T, np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T,sliders[6].val,sliders[7].val,sliders[8].val,sliders[9].val)
     text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}')
     if type(vec)!=type(None):
         ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
@@ -358,7 +361,7 @@ def sliders_on_changed(val):
     fig.canvas.draw_idle()
 
 
-for i in np.arange(8):
+for i in np.arange(len(min_val)):
     #samp.on_changed(update_slider)
     sliders[i].on_changed(sliders_on_changed)
 
