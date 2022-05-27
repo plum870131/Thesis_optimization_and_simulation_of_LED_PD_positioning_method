@@ -59,9 +59,13 @@ krot = testp_rot.shape[1]
 glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
 glob_led_ori = np.tile(global_testp_after_rot(led_ori_car,testp_rot), (kpos,1,1,1)).transpose((0,1,3,2))
 #(kpos,krot,pd_num,3)  
-glob_inv_pd_pos = testp_rot_matlist(-testp_rot)
-glob_inv_pd_pos = (np.tile(glob_inv_pd_pos@ pd_pos,(kpos,1,1,1))+np.tile(glob_inv_pd_pos@testp_pos,(pd_num,1,1,1)).transpose(3,1,2,0)).transpose(0,1,3,2)
-
+glob_inv_pd_pos = testp_rot_matlist(testp_rot).transpose(0,2,1)
+glob_inv_pd_pos = (np.tile(glob_inv_pd_pos@ pd_pos,\
+                            (kpos,1,1,1))\
+                    -np.tile(glob_inv_pd_pos@testp_pos\
+                             ,(pd_num,1,1,1)).transpose(3,1,2,0)\
+                    ).transpose(0,1,3,2)
+# print(glob_inv_pd_pos)
 
 # print(glob_inv_pd_pos)
 
@@ -149,7 +153,6 @@ maskled[\
         np.tile(np.repeat(np.arange(krot),led_num),kpos),\
         np.tile(np.arange(led_num),kpos*krot),\
         ref1_led.flatten()] = True #kp,kr,ledu, pd
-#print(maskled)
 maskpd = np.full(light_pd.shape, False)
 maskpd[np.repeat(np.arange(kpos),krot*pd_num),\
     np.tile(np.repeat(np.arange(krot),pd_num),kpos),\
@@ -157,18 +160,18 @@ maskpd[np.repeat(np.arange(kpos),krot*pd_num),\
     np.tile(np.arange(pd_num),kpos*krot),\
     ] = True #kp,kr,led, pdu
 led_data_ref = light_led.copy()
-led_data_ref .mask = (led_data_ref .mask | ~maskled)
+led_data_ref .mask = (light_led .mask | ~maskled)
 led_data_ref = np.sort(led_data_ref,axis=3)[:,:,:,0].reshape(kpos,krot,led_num,1)
 led_data_other = light_led.copy()
-led_data_other.mask = (led_data_other.mask | maskled)
+led_data_other.mask = (light_led.mask | maskled)
 
 # led_data_ref = light_led[maskled].reshape(kpos,krot,-1,1)#kp kr ledu 1
 #led_data_other = light_led[~maskled].reshape(ledu,-1)# ledu other
 pd_data_ref = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
-pd_data_ref.mask = (pd_data_ref.mask | ~maskpd)
+pd_data_ref.mask = (light_pd.mask | ~maskpd)
 pd_data_ref = np.sort(pd_data_ref,axis=2)[:,:,0,:].reshape(kpos,krot,1,pd_num)
 pd_data_other = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
-pd_data_other.mask = (pd_data_other .mask | maskpd)
+pd_data_other.mask = (light_pd .mask | maskpd)
 # =============================================================================
 # print(light_pd,'-----------')
 # print(maskpd)
@@ -186,26 +189,31 @@ check_ratio = np.divide(np.cos(check_inang_ref),np.cos(check_inang_other))
 check_ratio_sum = np.sum(~np.isclose(ratio_led,check_ratio,equal_nan=True))
 print('-------------------------------------')
 print('False Ratio:',check_ratio_sum)
-print('-------------------------------------')
+
 # =============================================================================
 # 計算平面normal vector[ledu other 3]
 # =============================================================================
 #kpos x krot x ledu x other x 3
-nor_led = np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1))
-nor_led_ref = np.sort( (np.ma.masked_array(nor_led,np.tile((light_pd.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
-nor_led_other = np.ma.masked_array(nor_led,np.tile(led_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
-nor_led = nor_led_ref - np.multiply(ratio_led.reshape(kpos,krot,led_num,-1,1),nor_led_other)
+conf_led = np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1))
+conf_led_ref = np.sort( (np.ma.masked_array(conf_led,np.tile((light_pd.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
+conf_led_other = np.ma.masked_array(conf_led,np.tile(led_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
+nor_led = conf_led_ref - np.multiply(ratio_led.reshape(kpos,krot,led_num,-1,1),conf_led_other)
 
 check_dot_led = np.sum(np.multiply(np.tile(testp_pos,(krot,led_num,pd_num,1,1)).transpose(4,0,1,2,3),nor_led),axis=4)
 check_dot_led = np.ma.masked_invalid(check_dot_led)
 #check_dot_led = np.sum(~(np.isclose(check_dot_led,np.zeros(led_data_other.shape))|np.isnan(check_dot_led)))
 check_dot_led_sum = np.sum(~(np.isclose(check_dot_led,np.zeros(check_dot_led.shape))))
 #print(check_dot_led_sum)
-#led-1 x pdu x 3
-nor_pd = np.tile(led_ori_car,(kpos,krot,pd_num,1,1)).transpose(0,1,4,2,3)
-nor_pd_ref = np.sort( (np.ma.masked_array(nor_pd,np.tile((light_pd.mask | ~maskpd),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
-nor_pd_other = np.ma.masked_array(nor_pd,np.tile(pd_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
-nor_pd = nor_pd_ref - np.multiply(ratio_pd.reshape(kpos,krot,led_num,-1,1),nor_pd_other)
+
+
+# kp kr l p 3
+conf_pd = np.tile(led_ori_car,(kpos,krot,pd_num,1,1)).transpose(0,1,4,2,3) # kp kr l p
+# kp kr 1 p 3
+conf_pd_ref = np.sort( (np.ma.masked_array(conf_pd,np.tile((light_pd.mask | ~maskpd),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
+# kp kr l p 3
+conf_pd_other = np.ma.masked_array(conf_pd,np.tile(pd_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
+# kp kr l p
+nor_pd = conf_pd_ref - np.multiply(ratio_pd.reshape(kpos,krot,led_num,-1,1),conf_pd_other)
 # 驗算dot
 check_dot_pd = np.sum(np.multiply(glob_inv_pd_pos.reshape(kpos,krot,1,-1,3),nor_pd),axis=4)
 check_dot_pd = np.ma.masked_invalid(check_dot_pd)
@@ -214,7 +222,7 @@ check_dot_pd_sum = np.sum(~(np.isclose(check_dot_pd,np.zeros(check_dot_pd.shape)
 print('-------------------------------------')
 print('False normal vector from pd view:' ,check_dot_led_sum)
 print('False normal vector from led view:' ,check_dot_pd_sum)
-print('-------------------------------------')
+
 
 
 # =============================================================================
@@ -222,63 +230,116 @@ print('-------------------------------------')
 # 並利用maskled2將data other分兩半
 # => 計算cross
 # =============================================================================
-ref2_led = np.nanargmax(led_data_other, axis = 1)
-ref2_pd = np.nanargmax(pd_data_other, axis = 0) #pdu,
-maskled2 = np.full(led_data_other.shape, False)
-maskled2[np.arange(ledu),ref2_led] = True #ledu, pd-1
-maskpd2 = np.full(pd_data_other.shape, False)
-maskpd2[ref2_pd, np.arange(pdu),] = True #led-1, pdu
+ref2_led = np.nanargmax(led_data_other, axis = 3)
+ref2_pd = np.nanargmax(pd_data_other, axis = 2) #pdu,
+
+
+maskled2 = np.full(light_led.shape, False)
+maskled2[\
+        np.repeat(np.arange(kpos),krot*led_num),\
+        np.tile(np.repeat(np.arange(krot),led_num),kpos),\
+        np.tile(np.arange(led_num),kpos*krot),\
+        ref2_led.flatten()] = True #kp,kr,ledu, pd
+
+maskpd2 = np.full(light_pd.shape, False)
+maskpd2[np.repeat(np.arange(kpos),krot*pd_num),\
+    np.tile(np.repeat(np.arange(krot),pd_num),kpos),\
+    ref2_pd.flatten(),
+    np.tile(np.arange(pd_num),kpos*krot),\
+    ] = True #kp,kr,led, pdu
 
 # 將normal vector分兩半
-nor_led_ref = nor_led[maskled2].reshape(-1,1,3) #ledu,1,3
-nor_led_other = nor_led[~maskled2].reshape(ledu,-1,3) #ledu,other-1,3
-nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
-nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
+
+nor_led_ref = nor_led.copy()
+nor_led_ref.mask = np.tile((light_led.mask| ~maskled2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
+nor_led_ref = np.sort(nor_led_ref,axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
+nor_led_other = nor_led.copy()
+nor_led_other.mask = (nor_led.mask|np.tile(maskled2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
+
+
+nor_pd_ref = nor_pd.copy()
+nor_pd_ref.mask = np.tile((light_pd.mask| ~maskpd2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
+nor_pd_ref = np.sort(nor_pd_ref,axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
+nor_pd_other = nor_pd.copy()
+nor_pd_other.mask = (nor_pd.mask|np.tile(maskpd2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
+# print(nor_pd_other)
+# nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
+# nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
 
 # =============================================================================
 # # 計算各平面交軸：cross vector
 # =============================================================================
-cross_led = np.cross(np.tile(nor_led_ref,(1,pd_num-2,1)),nor_led_other)#ledu,other-1,3
-cross_led = np.divide(cross_led, np.tile(np.sqrt(np.sum(np.square(cross_led),axis=2)),(1,1,1)).transpose(1,2,0))#ledu,other-1,3
-# cross_led_pstv：ref1的led指向，判斷軸方向是否正確
-cross_led_pstv = np.tile(pd_ori_car.T,(ledu,1,1))  [np.tile(maskled,(3,1,1)).transpose(1,2,0)].reshape((-1,3)) #ledu 3
-cross_led_mask = np.sum(np.multiply(cross_led, np.tile(cross_led_pstv,(pd_num-2,1,1)).transpose(1,0,2)),axis=2)<0#ledu other-1
-cross_led = np.where(np.tile(cross_led_mask,(3,1,1)).transpose(1,2,0),-cross_led,cross_led)
-#cross_led [ledu other-1 3]
-cross_pd = np.cross(np.tile(nor_pd_ref,(led_num-2,1,1)),nor_pd_other) #led-2,pdu,3
-cross_pd = np.divide(cross_pd, np.tile(np.sqrt(np.sum(np.square(cross_pd),axis=2)),(1,1,1)).transpose(1,2,0))#led-2,pdu,3
-cross_pd_pstv = (np.tile(led_ori_car,(pdu,1,1)).transpose(2,0,1))
-cross_pd_pstv = cross_pd_pstv [np.tile(maskpd,(3,1,1)).transpose(1,2,0)]    .reshape((1,-1,3)) #1,pdu 3
-cross_pd_mask = np.sum(np.multiply(cross_pd, np.tile(cross_pd_pstv,(led_num-2,1,1))),axis=2)<0#led-2 pdu 3
-cross_pd = np.where(np.tile(cross_pd_mask,(3,1,1)).transpose(1,2,0),-cross_pd,cross_pd)#led-2 pdu 3
-#cross_pd [led-2 pdu 3]
+# kp kr l p 3
+cross_led = np.ma.masked_array(np.cross(np.tile(nor_led_ref,(1,1,1,pd_num,1)),nor_led_other)\
+                               ,nor_led_other.mask )#ledu,other-1,3
+cross_led = np.divide(cross_led, np.tile(np.sqrt(np.sum(np.square(cross_led),axis=4)),(1,1,1,1,1)).transpose(1,2,3,4,0))#ledu,other-1,3
+cross_led_mask = np.sum(np.multiply(conf_led_ref, cross_led),axis=4)<0 ## kp kr l p
+cross_led = np.ma.masked_array(np.where(np.tile(cross_led_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_led,cross_led),\
+                               nor_led_other.mask)
+# 驗算cross
+check_cross_led = np.sum(np.multiply(cross_led,(np.tile( \
+                                                        np.divide(testp_pos,\
+                                                                  np.tile(np.sqrt(np.sum(np.square(testp_pos),axis=0)),(1,1))\
+                                                                  ),\
+                                                        (krot,led_num,pd_num,1,1)).transpose(4,0,1,2,3))\
+                                     ),axis=4)#kp kr l p
+check_cross_led = np.isclose(np.ma.masked_invalid(check_cross_led),np.ones(check_cross_led.shape))
+check_cross_led_sum = np.sum(~check_cross_led)
+
+
+# kp kr l p 3
+cross_pd = np.ma.masked_array(np.cross(np.tile(nor_pd_ref,(1,1,led_num,1,1)),nor_pd_other)\
+                               ,nor_pd_other.mask )#ledu,other-1,3
+
+cross_pd = np.divide(cross_pd, np.tile(np.sqrt(np.sum(np.square(cross_pd),axis=4)),(1,1,1,1,1)).transpose(1,2,3,4,0))#ledu,other-1,3
+
+cross_pd_mask = np.sum(np.multiply(conf_pd_ref, cross_pd),axis=4)<0 ## kp kr l p
+cross_pd = np.ma.masked_array(np.where(np.tile(cross_pd_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_pd,cross_pd),\
+                               nor_pd_other.mask)
 
 # 驗算cross
-check_cross_led = (np.sum(np.multiply(cross_led,np.tile(testp_pos.T/np.sqrt(np.sum(np.square(testp_pos))),(ledu,pd_num-2,1))),axis=2))
-check_cross_led = np.sum(~(np.isnan(check_cross_led) | np.isclose(check_cross_led,np.ones((ledu,pd_num-2)))))
-check_cross_pd = (np.sum(np.multiply(cross_pd,np.tile(-glob_inv_pd_pos[:,:,0,:]/np.sqrt(np.sum(np.square(glob_inv_pd_pos[:,:,0,:]))),(led_num-2,pd_usable.sum(),1))),axis=2))#led-2 pdu 3
-check_cross_pd = np.sum(~(np.isnan(check_cross_pd) | np.isclose(check_cross_pd,np.ones((led_num-2,pdu)))))
+check_cross_pd = np.sum(np.multiply(cross_pd,(np.tile( \
+                                                        np.divide(glob_inv_pd_pos,\
+                                                                  np.tile(np.sqrt(np.sum(np.square(glob_inv_pd_pos),axis=3)),(1,1,1,1)).transpose(1,2,3,0)\
+                                                                  ),\
+                                                        (led_num,1,1,1,1)).transpose(1,2,0,3,4))\
+                                     ),axis=4)#kp kr l p
+# print(check_cross_pd.transpose(0,1,3,2,4))
+check_cross_pd = np.isclose(np.ma.masked_invalid(check_cross_pd),np.ones(check_cross_pd.shape))
+check_cross_pd_sum = np.sum(~check_cross_pd)
+
 print('------------------------------------')
-print('False cross vector from pd view:' ,check_cross_led)
-print('False cross vector from pd view:' ,check_cross_pd)
-print('------------------------------------')
+print('False cross vector from pd view:' ,check_cross_led_sum)
+print('False cross vector from pd view:' ,check_cross_pd_sum)
+
 
 
 # 答案求平均（忽略nan）
-ori_sol_pd_coor = np.nanmean(cross_led,axis = (0,1)) #3,
-ori_sol_led_coor = np.nanmean(cross_pd,axis = (0,1)) #3,
-# print(ori_sol_pd_coor,ori_sol_led_coor)
+ori_sol_pd_coor = np.nanmean(cross_led,axis = (2,3)).filled(fill_value=np.nan) #kp kr 3,
+ori_sol_led_coor = np.nanmean(cross_pd,axis = (2,3)).filled(fill_value=np.nan) #kp kr 3,
+# print(ori_sol_pd_coor)
 
 
 # 由答案算in_ang,out_ang - ori_sol 3,  - ori_pd 3,pd
-sol_in_ang = np.arccos(np.inner(pd_ori_car.T,ori_sol_pd_coor)) # pd,
-sol_out_ang = np.arccos(np.inner(led_ori_car.T,ori_sol_led_coor)) #led,
-
+sol_in_ang = np.arccos(np.inner(ori_sol_pd_coor,pd_ori_car.T)) # kp kr pd,
+sol_out_ang = np.arccos(np.inner(ori_sol_led_coor,led_ori_car.T)) #kp kr led,
+# print(sol_out_ang)
 sol_dis = np.sqrt(const * np.divide(np.multiply(\
-                              np.tile(np.power(np.cos(sol_in_ang),pd_m),(led_num,1)),np.tile(np.power(np.cos(sol_out_ang),led_m),(pd_num,1)).T\
-                 ),light_f))
+                                                np.tile(np.power(np.cos(sol_in_ang),pd_m),(led_num,1,1,1)).transpose(1,2,0,3),\
+                                                np.tile(np.power(np.cos(sol_out_ang),led_m),(pd_num,1,1,1)).transpose(1,2,3,0)\
+                                                ),\
+                                    light_f)) #kp kr l p
+# print(np.tile(sol_in_ang,(led_num,1,1,1)).transpose(1,2,0,3),';;;;;;;')
+# print(np.tile(sol_out_ang,(pd_num,1,1,1)).transpose(1,2,3,0),'---------')
+# print(sol_dis)
+check_dis = np.sqrt(np.sum(np.square(np.tile(glob_led_pos,(pd_num,1,1,1,1)).transpose(1,2,3,0,4)),axis=4))
+check_dis = np.sum(~np.isclose(np.ma.masked_invalid(sol_dis),check_dis))
+print('------------------------------------')
+print('False dis:' ,check_dis)
+print('------------------------------------')
+sol_dis = np.nanmean(sol_dis,axis = (2,3))
 
-
+# print(sol_dis) 
 # =============================================================================
 # circle =  np.stack((in_ang[filt_l]* np.ones((filt,sample)),\
 #     np.tile(np.linspace(0,2*np.pi,sample),(filt,1))))# 2 x filt x sample

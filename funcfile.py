@@ -202,7 +202,7 @@ def bias(strength,bias_val): # strength[(krot, kpos, led_num, pd_num)] bias:int
 
 def lamb_order(semi): #semi power angle in degree
     return -1*np.log(2)/np.log(np.cos(np.deg2rad(semi)))
-
+print(lamb_order(8))
 
 def cal_ori(light_f,obs_m,obs_num,obs_ori):
     pd_num = obs_num
