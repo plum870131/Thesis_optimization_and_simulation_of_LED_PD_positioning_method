@@ -8,7 +8,7 @@ sympy.init_printing()
 
 
 from funcfile import *
-
+np.set_printoptions(precision=4,suppress=True)
 
 # set environment
 
@@ -50,9 +50,9 @@ led_rot_mat = rotate_z_mul(led_ori_ang[1,:]) @ rotate_y_mul(led_ori_ang[0,:])#le
 
 # sample point
 
-testp_pos = np.array([[0,1,1]]).T # 3x?
+testp_pos = np.array([[0,1,1],[0,0,1],[0,-1,2]]).T # 3x?
 kpos = testp_pos.shape[1]
-testp_rot = np.array([[np.pi,0,0]]).T
+testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
 krot = testp_rot.shape[1]
 
 #(kpos,krot,led_num,3)  # kpos krot m 3
@@ -63,7 +63,7 @@ glob_inv_pd_pos = testp_rot_matlist(-testp_rot)
 glob_inv_pd_pos = (np.tile(glob_inv_pd_pos@ pd_pos,(kpos,1,1,1))+np.tile(glob_inv_pd_pos@testp_pos,(pd_num,1,1,1)).transpose(3,1,2,0)).transpose(0,1,3,2)
 
 
-
+# print(glob_inv_pd_pos)
 
 # krot,kpos,led_num,pd_num
 dis,in_ang,out_ang = interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car)
@@ -102,7 +102,7 @@ light_f[light_f <= threshold] = np.nan
 # 先處理單個sample point
 # =============================================================================
 
-light_f = light_f.squeeze() #led pd
+# light_f = light_f.squeeze() #led pd
 
 
 
@@ -112,36 +112,80 @@ light_f = light_f.squeeze() #led pd
 
 
 
-led_usable = np.sum(~np.isnan(light_f),axis=1)>2 #led,
-pd_usable = np.sum(~np.isnan(light_f),axis =0 )>2#pd,
-pd_usable[2]=False
-light_led = light_f[led_usable,:] #ledu, pd
-light_pd = light_f[:,pd_usable] #led, pdu
+led_usable = np.sum(~np.isnan(light_f),axis=3)>2 #kp,kr,led,
+pd_usable = np.sum(~np.isnan(light_f),axis =2 )>2#kp,kr,pd,
+# pd_usable[2]=False
+light_led = np.ma.masked_array(light_f,np.tile(~led_usable,(pd_num,1,1,1)).transpose(1,2,3,0)) #kp,kr,ledu, pd
+light_pd = np.ma.masked_array(light_f, np.tile(~pd_usable,(led_num,1,1,1)).transpose(1,2,0,3))#.reshape(kpos,krot,led_num,-1) #kp,kr,led, pdu
+# print(light_f,"---------")
+
 # =============================================================================
 # 取強度最大者作為ref1_led，建立平面的基準
 # 並利用maskled將light_led分成ref和other
 # => 計算ratio_led
 # =============================================================================
-ledu = led_usable.sum()
-pdu = pd_usable.sum()
+ledu = led_usable.sum(axis=2)#kp,kr
+pdu = pd_usable.sum(axis=2)#kp,kr
 
-print('Led, Pd usable amount: ',ledu,pdu)
-ref1_led = np.nanargmax(light_led, axis = 1) #ledu,
-ref1_pd = np.nanargmax(light_pd, axis = 0) #pdu,
+# print('Led, Pd usable amount: ',ledu,pdu)
+ref1_led = np.nanargmax(light_led, axis = 3) #kp,kr,ledu,
+ref1_pd = np.nanargmax(light_pd, axis = 2) #kp,kr,pdu,
+# =============================================================================
+# print(light_led)
+# print(ref1_led)
+# =============================================================================
+
+# =============================================================================
+# print(np.repeat(np.arange(kpos),krot*led_num),'haha')
+# print(np.tile(np.repeat(np.arange(krot),led_num),kpos),'haha')
+# print(np.tile(np.arange(led_num),kpos*krot),'haha')
+# print(ref1_led.flatten(),'haha')
+# =============================================================================
 maskled = np.full(light_led.shape, False)
-maskled[np.arange(ledu),ref1_led] = True #ledu, pd
+maskled[\
+        np.repeat(np.arange(kpos),krot*led_num),\
+        np.tile(np.repeat(np.arange(krot),led_num),kpos),\
+        np.tile(np.arange(led_num),kpos*krot),\
+        ref1_led.flatten()] = True #kp,kr,ledu, pd
+#print(maskled)
 maskpd = np.full(light_pd.shape, False)
-maskpd[ref1_pd,np.arange(pdu)] = True #led, pdu
+maskpd[np.repeat(np.arange(kpos),krot*pd_num),\
+    np.tile(np.repeat(np.arange(krot),pd_num),kpos),\
+    ref1_pd.flatten(),
+    np.tile(np.arange(pd_num),kpos*krot),\
+    ] = True #kp,kr,led, pdu
+led_data_ref = light_led.copy()
+led_data_ref .mask = (led_data_ref .mask | ~maskled)
+led_data_ref = np.sort(led_data_ref,axis=3)[:,:,:,0].reshape(kpos,krot,led_num,1)
+led_data_other = light_led.copy()
+led_data_other.mask = (led_data_other.mask | maskled)
 
-led_data_ref = light_led[maskled].reshape(-1,1)#ledu 1
-led_data_other = light_led[~maskled].reshape(ledu,-1)# ledu other
-pd_data_ref = light_pd[maskpd].reshape(1,-1)#1 pdu
-pd_data_other = light_pd[~maskpd].reshape(led_num-1,-1) #other, pdu
+# led_data_ref = light_led[maskled].reshape(kpos,krot,-1,1)#kp kr ledu 1
+#led_data_other = light_led[~maskled].reshape(ledu,-1)# ledu other
+pd_data_ref = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
+pd_data_ref.mask = (pd_data_ref.mask | ~maskpd)
+pd_data_ref = np.sort(pd_data_ref,axis=2)[:,:,0,:].reshape(kpos,krot,1,pd_num)
+pd_data_other = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
+pd_data_other.mask = (pd_data_other .mask | maskpd)
+# =============================================================================
+# print(light_pd,'-----------')
+# print(maskpd)
+# =============================================================================
+#pd_data_other = light_pd[~maskpd].reshape(led_num-1,-1) #other, pdu
 # ref/other
-ratio_led = np.power(np.divide(led_data_ref, led_data_other),1/pd_m) #led_u x other
+#ratio_led = np.power(np.ma.divide(led_data_ref, led_data_other),1/pd_m) #led_u x other
+ratio_led = np.power(np.divide(led_data_ref, led_data_other),1/pd_m)
 ratio_pd = np.power(np.divide(pd_data_ref, pd_data_other),1/led_m) #other, pdu
 # in_ang  krot,kpos,led_num,pd_num
 
+check_inang_ref = (np.sort(np.ma.masked_array(in_ang_view,(light_led.mask | ~maskled)),axis=3)[:,:,:,0].reshape(kpos,krot,-1,1))
+check_inang_other = (np.ma.masked_array(in_ang_view,led_data_other.mask))
+check_ratio = np.divide(np.cos(check_inang_ref),np.cos(check_inang_other))
+i,j = 0,0
+print(ratio_led[i,j])
+print('=================')
+print(check_ratio[i,j])
+print(np.sum(~np.isclose(ratio_led,check_ratio,equal_nan=True)))
 # =============================================================================
 # # ratio 驗算
 # in_ang_t = in_ang_view.squeeze()
@@ -258,87 +302,89 @@ sol_dis = np.sqrt(const * np.divide(np.multiply(\
 # =============================================================================
 
 
-
-# Generate plot
-fig = plt.figure(figsize=plt.figaspect(2.))
-fig.suptitle('PD and Stereographic Projection')
-
-ax = fig.add_subplot(211, projection='3d')
-ax.set_box_aspect(aspect = (1,1,1))
-# ax.set_aspect("auto")
-
-# draw sphere
-u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
-x = 0.1*np.cos(u)*np.sin(v)
-y = 0.1*np.sin(u)*np.sin(v)
-z = 0.1*np.cos(v)
-ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-arrow = 0.2*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
-ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
-arrow = rotate_mat(testp_rot) @ arrow
-ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
-
 # =============================================================================
-# l = [[] for j in range(filt)]
-# p = [[] for j in range(filt)]
-# t = [[] for j in range(filt-2)]
 # 
-# for i in range(filt):
-#     l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
-#     p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
-# for i in range(filt-2):
-#     t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
-# a,b,c = ori_tar_cart
-# t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
-# =============================================================================
-
-# ax3d.set_title('Radiant Flux at different distance and angle')
-ax.set_xlabel('x')
-ax.set_ylabel('y')
-ax.set_zlabel('z')
-
-# =============================================================================
-# x, y, z = np.array([0,0,0])
-# u, v, w = np.array([0,0,1.5])
-# ax.quiver(x,y,z,u,v,w,arrow_length_ratio_led=0.1, color="black")
-# =============================================================================
-
-
-ax.grid(True)
-ax.set_xlim3d(-1.5,1.5)
-ax.set_ylim3d(-1.5,1.5)
-ax.set_zlim3d(0,3)
-
-#ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from nor_ledmal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
-
-
-
-ax = fig.add_subplot(212)
-
-ax.axis('equal')
-
-# =============================================================================
-# for i in range(filt):
-#     l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
-#     p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
-# tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
-# for i in range(filt-2):
-#     t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
-# a,b = stereo_3dto2d(ori_tar_cart)
+# # Generate plot
+# fig = plt.figure(figsize=plt.figaspect(2.))
+# fig.suptitle('PD and Stereographic Projection')
 # 
-# t1 = ax.scatter(a,b,marker='x',s=100,c='k')
+# ax = fig.add_subplot(211, projection='3d')
+# ax.set_box_aspect(aspect = (1,1,1))
+# # ax.set_aspect("auto")
+# 
+# # draw sphere
+# u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+# x = 0.1*np.cos(u)*np.sin(v)
+# y = 0.1*np.sin(u)*np.sin(v)
+# z = 0.1*np.cos(v)
+# ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
+# ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+# 
+# arrow = 0.2*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
+# ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
+# arrow = rotate_mat(testp_rot) @ arrow
+# ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
+# 
+# # =============================================================================
+# # l = [[] for j in range(filt)]
+# # p = [[] for j in range(filt)]
+# # t = [[] for j in range(filt-2)]
+# # 
+# # for i in range(filt):
+# #     l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
+# #     p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
+# # for i in range(filt-2):
+# #     t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
+# # a,b,c = ori_tar_cart
+# # t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
+# # =============================================================================
+# 
+# # ax3d.set_title('Radiant Flux at different distance and angle')
+# ax.set_xlabel('x')
+# ax.set_ylabel('y')
+# ax.set_zlabel('z')
+# 
+# # =============================================================================
+# # x, y, z = np.array([0,0,0])
+# # u, v, w = np.array([0,0,1.5])
+# # ax.quiver(x,y,z,u,v,w,arrow_length_ratio_led=0.1, color="black")
+# # =============================================================================
+# 
+# 
+# ax.grid(True)
+# ax.set_xlim3d(-1.5,1.5)
+# ax.set_ylim3d(-1.5,1.5)
+# ax.set_zlim3d(0,3)
+# 
+# #ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from nor_ledmal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
+# 
+# 
+# 
+# ax = fig.add_subplot(212)
+# 
+# ax.axis('equal')
+# 
+# # =============================================================================
+# # for i in range(filt):
+# #     l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
+# #     p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
+# # tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
+# # for i in range(filt-2):
+# #     t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
+# # a,b = stereo_3dto2d(ori_tar_cart)
+# # 
+# # t1 = ax.scatter(a,b,marker='x',s=100,c='k')
+# # =============================================================================
+# 
+# 
+# 
+# ax.grid(True)
+# ax.set_title('Stereographic projection')
+# 
+# 
+# 
+# # plt.show()
 # =============================================================================
-
-
-
-ax.grid(True)
-ax.set_title('Stereographic projection')
-
-
-
-# plt.show()
 
 
 

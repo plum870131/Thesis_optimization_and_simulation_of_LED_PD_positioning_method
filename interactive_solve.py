@@ -112,7 +112,7 @@ def solve_mulmul(testp_pos,testp_rot):
     
     led_usable = np.sum(~np.isnan(light_f),axis=1)>2 #led,
     pd_usable = np.sum(~np.isnan(light_f),axis =0 )>2#pd,
-    pd_usable[2]=False
+    #pd_usable[2]=False
     light_led = light_f[led_usable,:] #ledu, pd
     light_pd = light_f[:,pd_usable] #led, pdu
     # =============================================================================
