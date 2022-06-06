@@ -13,7 +13,7 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 
 # set environment
 def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
-    threshold = 0
+    threshold = 0.001
     led_num = int(led_num)
     pd_num = int(pd_num)
     led_m = int(led_m)
@@ -33,7 +33,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     
     pd_area = 1
     led_pt = 1
-    
+    pd_saturate = np.inf
     
     # config
     pd_pos = np.tile(np.array([[0,0,0]]),(pd_num,1)).T # 3xpd_num
@@ -79,11 +79,22 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     # light = np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
     light[np.isnan(light)] = 0
     
+    
     # =============================================================================
     # 這裡處理加上noise的部分
     # =============================================================================
+    boltz = 1.380649 * 10**(-23)
+    temp_k = 300
+    bandwidth = 300
+    elec_charge = 1.60217663 * 10**(-19)
+    shunt = 50
     
-    
+    noise = np.sqrt(4*temp_k*boltz*bandwidth/shunt\
+              + 2*elec_charge*bandwidth*light\
+                  ) #+ 2*elec_charge*bandwidth*dark
+    # print(noise[0,0,0,0])
+    light_noise = light + noise
+    light_noise[light_noise >= pd_saturate] = pd_saturate
     
     # -------以下是硬體部分------------------
     
@@ -95,8 +106,9 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     
     # filter掉訊號中小於threshold的部分：nan
     # krot,kpos,led_num,pd_num
-    light_f = np.copy(light)
+    light_f = np.copy(light_noise)
     light_f[light_f <= threshold] = np.nan
+    light_f[light_f >= pd_saturate] = np.nan
     
     
     # =============================================================================
@@ -131,7 +143,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
 # =============================================================================
 #         print('888')
 # =============================================================================
-        return None,None,None,None
+        return None,None,None,None,None
     
     # print('Led, Pd usable amount: ',ledu,pdu)
     ref1_led = np.nanargmax(light_led, axis = 1) #ledu,
@@ -197,7 +209,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     nor_led_other = nor_led[~maskled2].reshape(ledu,-1,3) #ledu,other-1,3
     nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
     nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
-    
+    print(nor_pd_other)
     # =============================================================================
     # # 計算各平面交軸：cross vector
     # =============================================================================
@@ -216,6 +228,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     cross_pd = np.where(np.tile(cross_pd_mask,(3,1,1)).transpose(1,2,0),-cross_pd,cross_pd)#led-2 pdu 3
     #cross_pd [led-2 pdu 3]
     cross_led_av = np.nanmean(cross_led,axis=(0,1))
+    print(cross_led_av.shape)
     # 驗算cross
 # =============================================================================
 #     check_cross_led = (np.sum(np.multiply(cross_led,np.tile(testp_pos.T/np.sqrt(np.sum(np.square(testp_pos))),(ledu,pd_num-2,1))),axis=2))
@@ -247,9 +260,22 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
                                   np.tile(np.power(np.cos(sol_in_ang),pd_m),(led_num,1)),np.tile(np.power(np.cos(sol_out_ang),led_m),(pd_num,1)).T\
                      ),light_f))
     sol_dis_av = np.nanmean(sol_dis,axis=(0,1))
+    print(sol_dis_av)
+    
+    error = np.sqrt(np.sum(np.square(sol_dis_av*cross_led_av-glob_led_pos[0,0,0,:])))
+# =============================================================================
+#     error = (np.sum(np.square(np.multiply(cross_led_av,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
+#     error = error.filled(np.inf)
+#     error[np.isclose(error,np.zeros(error.shape))] = np.nan 
+#     error = np.sqrt(error)
+#     error[np.isnan(error)]= 0
+# =============================================================================
+    # kp kr
+    # print(ledu)
+    # print(pdu)
+    print('error:',error)
 
-
-    return cross_led_av, sol_dis_av, ledu, pdu
+    return cross_led_av, sol_dis_av, ledu, pdu,error
 
 
 
@@ -267,8 +293,8 @@ pd_m = 3
 
 axis_color = 'lightgoldenrodyellow'
 
-fig = plt.figure()
-ax = fig.add_subplot(111,projection='3d')
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(121,projection='3d')
 ax.set_box_aspect(aspect = (1,1,1))
 ax.set_xlabel('x')
 ax.set_ylabel('y')
@@ -303,14 +329,14 @@ arrow_rot = rotate_mat(testp_rot) @ arrow
 axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
 
 
-vec, dis,ledu,pdu = solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m)
+vec, dis,ledu,pdu,error = solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m)
 #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
 if type(vec)!=type(None):
     ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
 else: ans = ax.text2D(-0.14,-0.16,'No Answer',transform=ax.transAxes,color='k')
 #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
 #print(vec,dis)
-text_item = ax.text(-2,-2,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}')
+text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
 
 # Draw the initial plot
 # The 'line' variable is used for modifying the line later
@@ -328,7 +354,7 @@ max_val = [1.5,1.5,3,2*np.pi,2*np.pi,2*np.pi,20,20,70,70]
 sliders = []
 for i in np.arange(len(min_val)):
 
-    axamp = plt.axes([0.84, 0.8-(i*0.05), 0.12, 0.02])
+    axamp = plt.axes([0.74, 0.8-(i*0.05), 0.12, 0.02])
     # Slider
     # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
     if i >5:
@@ -349,9 +375,9 @@ def sliders_on_changed(val):
     arrow_rot = rotate_mat(np.array([sliders[3].val,sliders[4].val,sliders[5].val])) @ arrow
     sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
     axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color=["r",'g','b'])
-    vec, dis,ledu,pdu = solve_mulmul(\
+    vec, dis,ledu,pdu,error = solve_mulmul(\
                     np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T, np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T,sliders[6].val,sliders[7].val,sliders[8].val,sliders[9].val)
-    text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}')
+    text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
     if type(vec)!=type(None):
         ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
     else: ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)

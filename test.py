@@ -4,11 +4,25 @@ import sympy
 from scipy.optimize import fsolve,root
 import math
 from mpl_toolkits import mplot3d
+from geneticalgorithm import geneticalgorithm as ga
 sympy.init_printing()
 
 import funcfile as func
 
+from geneticalgorithm import geneticalgorithm as ga
 
+def f(X):
+    return np.sum(X)
+
+
+varbound=np.array([[0,10]]*3)
+
+model=ga(function=f,dimension=3,variable_type='int',variable_boundaries=varbound)
+
+model.run()
+
+
+'''
 def rodrigue(k,ang):
     K = np.array([[0, -k[2], k[1]],[k[2], 0, -k[0]],[-k[1], k[0], 0]])
     I = np.eye(3)
@@ -93,7 +107,7 @@ plt.show()
 # pd = np.ones(3)
 # led = np.array([func.lamb_order(10),1])
 
-
+'''
 
 
 '''

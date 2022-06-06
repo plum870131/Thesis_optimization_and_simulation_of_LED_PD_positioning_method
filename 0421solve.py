@@ -15,14 +15,14 @@ np.set_printoptions(precision=4,suppress=True)
 threshold = 0
 
 pd_num = 7
-pd_m = 3
+pd_m = 70
 pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
 pd_alpha = np.deg2rad(35)#傾角
 pd_beta = np.deg2rad(360/pd_num)#方位角
 
 
 led_num = 5
-led_m = 10
+led_m = 70
 led_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
 led_alpha = np.deg2rad(45)#傾角
 led_beta = np.deg2rad(360/led_num)#方位角
@@ -337,8 +337,18 @@ check_dis = np.sum(~np.isclose(np.ma.masked_invalid(sol_dis),check_dis))
 print('------------------------------------')
 print('False dis:' ,check_dis)
 print('------------------------------------')
-sol_dis = np.nanmean(sol_dis,axis = (2,3))
-
+sol_dis_av = np.nanmean(sol_dis,axis = (2,3))
+cross_led_av = np.nanmean(cross_led,(2,3)) #kp kr 3
+# a  = np.multiply(cross_led_av,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]
+# print(a)
+error = (np.sum(np.square(np.multiply(cross_led_av,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
+# print(error)
+error = error.filled(np.inf)
+error[np.isclose(error,np.zeros(error.shape))] = np.nan 
+# print(error)
+error = np.sqrt(error)
+# error[np.isnan(error)]= 0
+print(error)
 # print(sol_dis) 
 # =============================================================================
 # circle =  np.stack((in_ang[filt_l]* np.ones((filt,sample)),\
