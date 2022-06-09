@@ -31,9 +31,10 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     led_alpha = np.deg2rad(45)#傾角
     led_beta = np.deg2rad(360/led_num)#方位角
     
-    pd_area = 1
-    led_pt = 1
+    pd_area = 0.5
+    led_pt = 0.5
     pd_saturate = np.inf
+    pd_respon = 0.5
     
     # config
     pd_pos = np.tile(np.array([[0,0,0]]),(pd_num,1)).T # 3xpd_num
@@ -74,7 +75,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     out_ang_view = filter_view_angle(out_ang,led_view)
     
     
-    const = pd_area * led_pt * (led_num+1)/(2*np.pi)
+    const = pd_respon * pd_area * led_pt * (led_num+1)/(2*np.pi)
     light = const * np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
     # light = np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
     light[np.isnan(light)] = 0
@@ -209,7 +210,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     nor_led_other = nor_led[~maskled2].reshape(ledu,-1,3) #ledu,other-1,3
     nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
     nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
-    print(nor_pd_other)
+    # print(nor_pd_other)
     # =============================================================================
     # # 計算各平面交軸：cross vector
     # =============================================================================
@@ -228,7 +229,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     cross_pd = np.where(np.tile(cross_pd_mask,(3,1,1)).transpose(1,2,0),-cross_pd,cross_pd)#led-2 pdu 3
     #cross_pd [led-2 pdu 3]
     cross_led_av = np.nanmean(cross_led,axis=(0,1))
-    print(cross_led_av.shape)
+    # print(cross_led_av.shape)
     # 驗算cross
 # =============================================================================
 #     check_cross_led = (np.sum(np.multiply(cross_led,np.tile(testp_pos.T/np.sqrt(np.sum(np.square(testp_pos))),(ledu,pd_num-2,1))),axis=2))
@@ -377,10 +378,13 @@ def sliders_on_changed(val):
     axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color=["r",'g','b'])
     vec, dis,ledu,pdu,error = solve_mulmul(\
                     np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T, np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T,sliders[6].val,sliders[7].val,sliders[8].val,sliders[9].val)
-    text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
+    
     if type(vec)!=type(None):
         ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
-    else: ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+        text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+    else: 
+        ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+        text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{errorj}')
     #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
     #ax.text2D(0,0,'No Answer',transform=ax.transAxes)
                             # ax.collections.remove(arrow)
