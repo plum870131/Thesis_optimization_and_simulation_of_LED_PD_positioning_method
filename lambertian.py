@@ -17,11 +17,11 @@ leng = thetaa.shape
 psi = np.zeros(leng)
 # print(thetaa.shape,diss.shape,psi.shape)
 pd = np.ones(3)
-led = np.array([func.lamb_order(10),1])
+led = np.array([lamb_order(10),1])
 
 
 
-p1 = func.src2pdcurrent(thetaa,psi,diss,pd,led)
+p1 = src2pdcurrent(thetaa,psi,diss,pd,led)
 
 
 fig = plt.figure()

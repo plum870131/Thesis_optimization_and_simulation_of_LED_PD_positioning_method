@@ -64,7 +64,7 @@ def solve_mulmul(led_num,pd_num,led_m,pd_m):
     
     
     # sample point
-    testp_pos = np.array([[0,1,1],[0,0,1],[0,-1,2]]).T # 3x?
+    testp_pos = (np.mgrid[-1:1:4j, -1:1:4j, 1:3:4j].reshape(-1,4*4*4)) # 3x?
     # kpos = testp_pos.shape[1]
     testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
     # krot = testp_rot.shape[1]
@@ -365,17 +365,23 @@ def solve_mulmul(led_num,pd_num,led_m,pd_m):
     # print('False dis:' ,check_dis)
     # print('------------------------------------')
     sol_dis_av = np.nanmean(sol_dis,axis = (2,3))#kp kr
-    print()
+    # print()
     error = (np.sum(np.square(np.multiply(cross_led_av,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
-    error = error.filled(np.inf)
-    error[np.isclose(error,np.zeros(error.shape))] = np.nan 
+    unsolve = np.ma.count_masked(error)
+    error = error.filled(np.inf) # masked改成inf
+    error[error==0] = np.nan # sqrt不能處理0
     error = np.sqrt(error)
     error[np.isnan(error)]= 0
+    
+    tolerance = 0.05
+    success = np.sum(error<tolerance)
+    error_av = np.mean(error[error<tolerance])
+    print(unsolve,success)
     # kp kr
     # print(ledu)
     # print(pdu)
-    print(10000000000*error[0,0])
-    return glob_led_pos,glob_led_ori,error 
+    #print(error[0,0])
+    return glob_led_pos,glob_led_ori,error ,unsolve,success,error_av
 
 
 # initiate
@@ -392,8 +398,8 @@ pd_m = 3
 
 axis_color = 'lightgoldenrodyellow'
 
-fig = plt.figure()
-ax = fig.add_subplot(111,projection='3d')
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(121,projection='3d')
 ax.set_box_aspect(aspect = (1,1,1))
 ax.set_xlabel('x')
 ax.set_ylabel('y')
@@ -429,16 +435,19 @@ arrow = 0.3*np.array([[0,0,1]]).T
 ax.quiver(0,0,0,arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.5, color='k')
 arrow_rot = np.tile((testp_rot_matlist(testp_rot) @ arrow).squeeze(),(testp_pos.shape[1],1,1)) #kr 3 1
 arrow_p = np.tile(testp_pos,(testp_rot.shape[1],1,1)).transpose(2,0,1)
-axis_item = ax.quiver(arrow_p[:,:,0],arrow_p[:,:,1],arrow_p[:,:,2],arrow_rot[:,:,0],arrow_rot[:,:,1],arrow_rot[:,:,2],arrow_length_ratio=0.5, color=["r"])
+# axis_item = ax.quiver(arrow_p[:,:,0],arrow_p[:,:,1],arrow_p[:,:,2],arrow_rot[:,:,0],arrow_rot[:,:,1],arrow_rot[:,:,2],arrow_length_ratio=0.5, color=["r"])
 
 
-glob_led_pos,glob_led_ori,error  = solve_mulmul(led_num,pd_num,led_m,pd_m)
+glob_led_pos,glob_led_ori,error,unsolve,success,error_av  = solve_mulmul(led_num,pd_num,led_m,pd_m)
+text_item = ax.text(-2.5,-2.5,-2, f'Unsolvable:{unsolve}\nSuccess:{success}\nMean error:{error_av:.4E}')
+
+
 
 error = error.flatten()
 bubble = []
 for i in range(error.size):
     if error[i] != np.inf:
-        bubble.append(ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],s = error+50,c = 'b'))
+        bubble.append(ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],s = 10**9*error+10,c = 'b'))
     else:
         bubble.append(ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],marker = 'x',c = 'k',s = 100))
 
@@ -492,7 +501,7 @@ def sliders_on_changed(val):
     # arrow_rot = rotate_mat(np.array([sliders[3].val,sliders[4].val,sliders[5].val])) @ arrow
     # sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
     #axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.5], color=["r"])
-    glob_led_pos,glob_led_ori,error = solve_mulmul(\
+    glob_led_pos,glob_led_ori,error,unsolve,success,error_av = solve_mulmul(\
                     sliders[0].val,sliders[1].val,sliders[2].val,sliders[3].val)
     # arrow_rot = np.tile((testp_rot_matlist(testp_rot) @ arrow).squeeze(),(testp_pos.shape[1],1,1)) #kr 3 1
     # arrow_p = np.tile(testp_pos,(testp_rot.shape[1],1,1)).transpose(2,0,1)
@@ -502,8 +511,9 @@ def sliders_on_changed(val):
     error = error.flatten()
     for i in range(error.size):
         ax.collections.remove(bubble[i])
+        text_item.set_text(f'Unsolvable:{unsolve}\nSuccess:{success}\nMean error:{error_av:.4E}')
         if error[i] != np.inf:
-            bubble[i] = ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],s = error+50,c = 'b',)
+            bubble[i] = ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],s = 10**9*error+10,c = 'b',)
         else:
             bubble[i] = ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],marker = 'x',c = 'k',s = 100)
 # =============================================================================
