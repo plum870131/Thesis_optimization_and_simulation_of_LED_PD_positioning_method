@@ -11,15 +11,30 @@ from funcfile import *
 
 from geneticalgorithm import geneticalgorithm as ga
 # plt.rcParams['font.sans-serif'] = ['Source Han Sans TW', 'sans-serif']
-plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
-plt.rcParams['axes.unicode_minus'] = False 
-
-pd_num = 5
-led_num = 5
 
 
-led_config =np.stack((  np.array([0.21473079, 2.40400875, 1.34644435, 0.22016245,0.33976713]), np.array([2.64807832, 2.45939339, 2.94233641, 4.74591118, 1.77008613])))         
-pd_config = np.stack((np.array([0.35709663, 0.45533932, 0.88859295, 0.27061169, 1.89314697]),np.array([2.70758594,4.48369105, 3.14887709, 3.92191011, 3.68513225]))) 
+
+led_num = 10
+pd_num = 10
+out = '1.59635534 3.64659549 0.33866975 0.00962708 0.10512115 2.36928225\
+  0.01985999 3.09494779 0.21011412 2.79623198 0.30071889 2.41888534\
+  0.55043657 2.4528098  4.59372575 0.33147949 1.73930968 0.22639113\
+  3.21930293 0.81341371 5.2607883  1.85458207 0.05406089 0.57445071\
+  1.83451829 0.03682501 2.55868568 0.17909927 1.70097813 0.13315306\
+  2.024396   0.7498849  0.84769257 1.66959346 5.54648204 0.47771415\
+  5.58602008 3.80653029 3.01512575 2.98516385 0.54550955 4.55192033'
+X = out.split()
+X = np.array(X, dtype=np.float32)
+# print(X.shape)
+led_m = X[0]
+pd_m = X[1]
+pd_config = np.stack((X[2:2+led_num],X[2+led_num:2+2*led_num]))
+led_config = np.stack((X[2+2*led_num:2+2*led_num+pd_num],X[2+2*led_num+pd_num:2+2*led_num+2*pd_num]))
+print(pd_config.shape)
+
+
+# led_config =np.stack((  np.array([0.21473079, 2.40400875, 1.34644435, 0.22016245,0.33976713]), np.array([2.64807832, 2.45939339, 2.94233641, 4.74591118, 1.77008613])))         
+# pd_config = np.stack((np.array([0.35709663, 0.45533932, 0.88859295, 0.27061169, 1.89314697]),np.array([2.70758594,4.48369105, 3.14887709, 3.92191011, 3.68513225]))) 
 led_x = np.multiply(np.cos(led_config[1,:]),np.sin(led_config[0,:]))
 led_y = np.multiply(np.sin(led_config[1,:]),np.sin(led_config[0,:]))
 led_z = np.cos(led_config[0,:])

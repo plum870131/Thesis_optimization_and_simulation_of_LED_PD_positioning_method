@@ -6,7 +6,6 @@ Created on Fri May 20 10:43:08 2022
 @author: tiffany
 """
 from funcfile import *
-from numpy import pi, sin
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
@@ -31,7 +30,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     led_alpha = np.deg2rad(45)#傾角
     led_beta = np.deg2rad(360/led_num)#方位角
     
-    pd_area = 0.5
+    pd_area = 0.1
     led_pt = 0.5
     pd_saturate = np.inf
     pd_respon = 0.5
@@ -60,7 +59,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     glob_led_ori = np.tile(global_testp_after_rot(led_ori_car,testp_rot), (kpos,1,1,1)).transpose((0,1,3,2))
     
     glob_inv_pd_pos = testp_rot_matlist(-testp_rot)
-    glob_inv_pd_pos = (np.tile(glob_inv_pd_pos@ pd_pos,(kpos,1,1,1))+np.tile(glob_inv_pd_pos@testp_pos,(pd_num,1,1,1)).transpose(3,1,2,0)).transpose(0,1,3,2)
+    glob_inv_pd_pos = (np.tile(glob_inv_pd_pos@ pd_pos,(kpos,1,1,1))-np.tile(glob_inv_pd_pos@testp_pos,(pd_num,1,1,1)).transpose(3,1,2,0)).transpose(0,1,3,2)
     
     
     
@@ -97,6 +96,10 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     light_noise = light + noise
     light_noise[light_noise >= pd_saturate] = pd_saturate
     
+    
+    NEP = noise
+    light_floor = NEP*np.floor_divide(light_noise, NEP)
+    
     # -------以下是硬體部分------------------
     
     
@@ -107,7 +110,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     
     # filter掉訊號中小於threshold的部分：nan
     # krot,kpos,led_num,pd_num
-    light_f = np.copy(light_noise)
+    light_f = np.copy(light_floor)
     light_f[light_f <= threshold] = np.nan
     light_f[light_f >= pd_saturate] = np.nan
     
@@ -118,7 +121,9 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     
     light_f = light_f.squeeze() #led pd
     
-    
+    # print(np.nanmean(light_f))
+    # print(light_f)
+    # light_f = np.around(light_f,decimals =10)
     
     # =============================================================================
     # 判斷特定LED是否有>=三個PD接收（才能判斷方位）
@@ -261,7 +266,7 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
                                   np.tile(np.power(np.cos(sol_in_ang),pd_m),(led_num,1)),np.tile(np.power(np.cos(sol_out_ang),led_m),(pd_num,1)).T\
                      ),light_f))
     sol_dis_av = np.nanmean(sol_dis,axis=(0,1))
-    print(sol_dis_av)
+    print('dis',sol_dis_av)
     
     error = np.sqrt(np.sum(np.square(sol_dis_av*cross_led_av-glob_led_pos[0,0,0,:])))
 # =============================================================================
@@ -334,10 +339,13 @@ vec, dis,ledu,pdu,error = solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,
 #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
 if type(vec)!=type(None):
     ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
-else: ans = ax.text2D(-0.14,-0.16,'No Answer',transform=ax.transAxes,color='k')
+    text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+else: 
+    ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+    text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
 #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
 #print(vec,dis)
-text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+
 
 # Draw the initial plot
 # The 'line' variable is used for modifying the line later
@@ -384,7 +392,7 @@ def sliders_on_changed(val):
         text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
     else: 
         ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
-        text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{errorj}')
+        text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
     #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
     #ax.text2D(0,0,'No Answer',transform=ax.transAxes)
                             # ax.collections.remove(arrow)

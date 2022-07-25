@@ -50,9 +50,9 @@ led_rot_mat = rotate_z_mul(led_ori_ang[1,:]) @ rotate_y_mul(led_ori_ang[0,:])#le
 
 # sample point
 
-testp_pos = np.array([[0,1,1],[0,0,1],[0,-1,2]]).T # 3x?
+testp_pos = np.array([[0.5,1,2]]).T # 3x?
 kpos = testp_pos.shape[1]
-testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
+testp_rot = np.array([[np.pi,np.deg2rad(10),0]]).T
 krot = testp_rot.shape[1]
 
 #(kpos,krot,led_num,3)  
@@ -350,6 +350,10 @@ error = np.sqrt(error)
 # error[np.isnan(error)]= 0
 print(error)
 # print(sol_dis) 
+
+
+
+
 # =============================================================================
 # circle =  np.stack((in_ang[filt_l]* np.ones((filt,sample)),\
 #     np.tile(np.linspace(0,2*np.pi,sample),(filt,1))))# 2 x filt x sample
@@ -364,93 +368,115 @@ print(error)
 # 
 # 
 # o_stereo = stereo_3dto2d(pd_ori_car[:,filt_l])
-# 
 # =============================================================================
 
 
-# =============================================================================
-# 
-# # Generate plot
-# fig = plt.figure(figsize=plt.figaspect(2.))
+
+# Generate plot
+fig = plt.figure(figsize=plt.figaspect(2.))
 # fig.suptitle('PD and Stereographic Projection')
-# 
-# ax = fig.add_subplot(211, projection='3d')
-# ax.set_box_aspect(aspect = (1,1,1))
-# # ax.set_aspect("auto")
-# 
-# # draw sphere
-# u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
-# x = 0.1*np.cos(u)*np.sin(v)
-# y = 0.1*np.sin(u)*np.sin(v)
-# z = 0.1*np.cos(v)
+
+ax = fig.add_subplot(211, projection='3d')
+ax.set_box_aspect(aspect = (1,1,1))
+# ax.set_aspect("auto")
+
+# draw sphere
+u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+x = 1*np.cos(u)*np.sin(v)
+y = 1*np.sin(u)*np.sin(v)
+z = 1*np.cos(v)
 # ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-# ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-# 
+ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
 # arrow = 0.2*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
 # ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
 # arrow = rotate_mat(testp_rot) @ arrow
 # ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.1, color=["r",'g','b'])
-# 
-# # =============================================================================
-# # l = [[] for j in range(filt)]
-# # p = [[] for j in range(filt)]
-# # t = [[] for j in range(filt-2)]
-# # 
-# # for i in range(filt):
-# #     l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
-# #     p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
-# # for i in range(filt-2):
-# #     t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
-# # a,b,c = ori_tar_cart
-# # t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
-# # =============================================================================
-# 
-# # ax3d.set_title('Radiant Flux at different distance and angle')
-# ax.set_xlabel('x')
-# ax.set_ylabel('y')
-# ax.set_zlabel('z')
-# 
-# # =============================================================================
-# # x, y, z = np.array([0,0,0])
-# # u, v, w = np.array([0,0,1.5])
-# # ax.quiver(x,y,z,u,v,w,arrow_length_ratio_led=0.1, color="black")
-# # =============================================================================
-# 
-# 
-# ax.grid(True)
-# ax.set_xlim3d(-1.5,1.5)
-# ax.set_ylim3d(-1.5,1.5)
-# ax.set_zlim3d(0,3)
-# 
-# #ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from nor_ledmal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
-# 
-# 
-# 
-# ax = fig.add_subplot(212)
-# 
-# ax.axis('equal')
-# 
-# # =============================================================================
-# # for i in range(filt):
-# #     l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
-# #     p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
-# # tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
-# # for i in range(filt-2):
-# #     t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
-# # a,b = stereo_3dto2d(ori_tar_cart)
-# # 
-# # t1 = ax.scatter(a,b,marker='x',s=100,c='k')
-# # =============================================================================
-# 
-# 
-# 
-# ax.grid(True)
-# ax.set_title('Stereographic projection')
-# 
-# 
-# 
-# # plt.show()
+alpha = np.deg2rad(np.array([30,30,50]))
+beta = np.deg2rad(np.array([0,270,120]))
+x = np.sin(alpha)*np.cos(beta)
+y = np.sin(alpha)*np.sin(beta)
+z = np.cos(alpha)
+zero = np.array([0,0,0])
+
+ax.quiver(zero,zero,zero,x,y,z,color = 'r')
+ax.quiver(0,0,0,0,0,1.5,color='k')
+ax.quiver(0,0,0,0,1.5,0,color='k')
+ax.quiver(0,0,0,1.5,0,0,color='k')
+
+a = np.linspace(-1,1,21)
+b = np.linspace(-1,1,21)
+A,B = np.meshgrid(a,b)
+c = np.zeros((21,21))
+ax.plot_surface(A,B,c, color="grey",alpha=0.2)
+
+ax.xaxis.set_ticklabels([])
+ax.yaxis.set_ticklabels([])
+ax.zaxis.set_ticklabels([])
+ax.set_axis_off()
+
+d = np.sqrt(0.5**2+1+2**2)
+ax.scatter(0.5/d,1/d,2/d,marker = 'x',s=100, color = 'g')
+
 # =============================================================================
+# l = [[] for j in range(filt)]
+# p = [[] for j in range(filt)]
+# t = [[] for j in range(filt-2)]
+# 
+# for i in range(filt):
+#     l[i], = ax.plot(circle_rot[i,0,:],circle_rot[i,1,:],circle_rot[i,2,:])
+#     p[i] = ax.scatter(pd_ori_car[0,i],pd_ori_car[1,i],pd_ori_car[2,i])
+# for i in range(filt-2):
+#     t[i] = ax.scatter(tar_car_sol[i,0],tar_car_sol[i,1],tar_car_sol[i,2],marker='3',s=1000,c = 'indigo')
+# a,b,c = ori_tar_cart
+# t1 = ax.scatter(a,b,c,marker='x',s=100,c='k')
+# =============================================================================
+
+# ax3d.set_title('Radiant Flux at different distance and angle')
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_zlabel('z')
+
+# =============================================================================
+# x, y, z = np.array([0,0,0])
+# u, v, w = np.array([0,0,1.5])
+# ax.quiver(x,y,z,u,v,w,arrow_length_ratio_led=0.1, color="black")
+# =============================================================================
+
+
+ax.grid(True)
+ax.set_xlim3d(-1.5,1.5)
+ax.set_ylim3d(-1.5,1.5)
+ax.set_zlim3d(0,3)
+
+#ax.legend([l1,l2,l3,l4,l5],['pd1','pd2','target orientation','solve from nor_ledmal','solve from rotate'],bbox_to_anchor=(-0.5, 1.3), loc='upper left')
+
+
+
+ax = fig.add_subplot(212)
+
+ax.axis('equal')
+
+# =============================================================================
+# for i in range(filt):
+#     l[i], = ax.plot(circle_stereo[i,0,:],circle_stereo[i,1,:])
+#     p[i] = ax.scatter(o_stereo[0,i],o_stereo[1,i])
+# tar_car_sol_ste = stereo_3dto2d(tar_car_sol.T).T
+# for i in range(filt-2):
+#     t[i] = ax.scatter(tar_car_sol_ste[i,0],tar_car_sol_ste[i,1],marker='3',s=1000,c = 'indigo')
+# a,b = stereo_3dto2d(ori_tar_cart)
+# 
+# t1 = ax.scatter(a,b,marker='x',s=100,c='k')
+# =============================================================================
+
+
+
+ax.grid(True)
+ax.set_title('Stereographic projection')
+
+
+
+# plt.show()
 
 
 

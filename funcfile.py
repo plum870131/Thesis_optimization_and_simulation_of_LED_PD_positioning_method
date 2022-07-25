@@ -202,7 +202,7 @@ def bias(strength,bias_val): # strength[(krot, kpos, led_num, pd_num)] bias:int
 
 def lamb_order(semi): #semi power angle in degree
     return -1*np.log(2)/np.log(np.cos(np.deg2rad(semi)))
-
+# print(lamb_order(28))
 
 def cal_ori(light_f,obs_m,obs_num,obs_ori):
     pd_num = obs_num
@@ -343,7 +343,7 @@ def rodrigue_mulmul(k_vec,ang): #k:[sample,3] ang[sample,]
 
 def cart2sph(cart_v):#3x?
     cart = np.divide(cart_v, np.sqrt(np.sum(np.square(cart_v),axis=0).reshape((1,-1))))
-    return np.array([   np.arccos(cart[2,:])   ,    np.divide( np.arctan(cart[1,:]), cart[0,:]) + (cart[0,:]<0)*(np.pi)   ])#2x?
+    return np.array([   np.arccos(cart[2,:])   ,  np.arctan(np.divide(cart[1,:],cart[0,:]))- (cart[0,:]<0)*(np.pi)  ])# np.divide( np.arctan(cart[1,:]), cart[0,:]) - (cart[0,:]<0)*(np.pi)   ])#2x?
 
 def rotate_y_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
     rot = np.zeros((ang.size,3,3))
