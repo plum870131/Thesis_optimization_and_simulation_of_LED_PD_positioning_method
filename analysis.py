@@ -486,8 +486,9 @@ shunt = 1000*10**6 # 10-1000 mega
 # pd_m = 1
 
 ans = np.zeros((14,14,5,5,5,5,2))
-numl = np.arange(3,16,1)
-nump = np.arange(3,16,1)
+numl = np.array([3,5,8,10,12,15])
+# numl = np.arange(3,16,1)
+nump = np.arange(8,9,1)
 ml = np.array([1,1.5,2,3,5])
 mp = np.array([1,1.5,2,3,5])
 alphal = np.deg2rad(np.arange(10,60,10))
