@@ -43,23 +43,58 @@ pd_y = np.multiply(np.sin(pd_config[1,:]),np.sin(pd_config[0,:]))
 pd_z = np.cos(pd_config[0,:])
 zero = np.zeros(led_z.size)
 
+
+
+
 fig = plt.figure(figsize=(12, 8))
 
 ax = fig.add_subplot(211,projection='3d')
-ax.title.set_text('LED組態')
+ax.set_box_aspect(aspect = (1,1,1))
+ax.title.set_text('LED Configuration')
 ax.quiver(zero,zero,zero,led_x,led_y,led_z)
 ax.set_xlim3d(-1,1)
 ax.set_ylim3d(-1,1)
 ax.set_zlim3d(-1,1)
 
+u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+x = 1*np.cos(u)*np.sin(v)
+y = 1*np.sin(u)*np.sin(v)
+z = 1*np.cos(v)
+ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+ax.quiver(0,0,0,0,0,1,color='k')
+ax.quiver(0,0,0,0,1,0,color='k')
+ax.quiver(0,0,0,1,0,0,color='k')
+ax.xaxis.set_ticklabels([])
+ax.yaxis.set_ticklabels([])
+ax.zaxis.set_ticklabels([])
+ax.set_axis_off()
+
+
 
 ax = fig.add_subplot(212,projection='3d')
-ax.title.set_text('PD組態')
+ax.set_box_aspect(aspect = (1,1,1))
+ax.title.set_text('PD Configuration')
 ax.quiver(zero,zero,zero,pd_x,pd_y,pd_z)
 ax.set_xlim3d(-1,1)
 ax.set_ylim3d(-1,1)
 ax.set_zlim3d(-1,1)
+ax.quiver(0,0,0,0,0,1,color='k')
+ax.quiver(0,0,0,0,1,0,color='k')
+ax.quiver(0,0,0,1,0,0,color='k')
 
+u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+x = 1*np.cos(u)*np.sin(v)
+y = 1*np.sin(u)*np.sin(v)
+z = 1*np.cos(v)
+ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+ax.xaxis.set_ticklabels([])
+ax.yaxis.set_ticklabels([])
+ax.zaxis.set_ticklabels([])
+ax.set_axis_off()
+
+plt.show()
 # =============================================================================
 # lamb = [1,2,5,10,20]
 # fig = plt.figure(figsize=(12, 8))

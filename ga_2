@@ -102,7 +102,7 @@ def solve_mulmul(X):
     # light = np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
     mask_light= np.isnan(light)
     light[mask_light] = 0
-    print('light')
+    # print('light')
     # =============================================================================
     # 這裡處理加上noise的部分
     # =============================================================================
@@ -139,7 +139,7 @@ def solve_mulmul(X):
     light_f[light_f >= pd_saturate] = np.nan
     
     
-    print('lightf')
+    # print('lightf')
     
     
     # =============================================================================
@@ -163,7 +163,7 @@ def solve_mulmul(X):
     # =============================================================================
     ledu = led_usable.sum(axis=2)#kp,kr
     pdu = pd_usable.sum(axis=2)#kp,kr
-    print('ledu')
+    # print('ledu')
     # print('Led, Pd usable amount: ',ledu,pdu)
     ref1_led = np.nanargmax(light_led, axis = 3) #kp,kr,ledu,
     ref1_pd = np.nanargmax(light_pd, axis = 2) #kp,kr,pdu,
@@ -325,7 +325,7 @@ def solve_mulmul(X):
 #     check_cross_led_sum = np.sum(~check_cross_led)
 # =============================================================================
     cross_led_av = np.nanmean(cross_led,(2,3)) #kp kr 3
-    print('crossled')
+    # print('crossled')
     # cross_led_av = 
     
     # kp kr l p 3
@@ -430,9 +430,9 @@ def solve_mulmul(X):
     error_av = np.mean(error[error<tolerance])
     # print('unsolve:',unsolve,', solve:',solve,', success:',success)
     # print(np.average(sol_dis_av))
-    
+    print(success)
     # return glob_led_pos,glob_led_ori,error ,unsolve,success,error_av
-    return success/kpos/krot
+    return success
 
 
 
@@ -517,14 +517,14 @@ testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([
 led_num = 5
 pd_num = 5
 
-algorithm_param = {'max_num_iteration': 100,\
+algorithm_param = {'max_num_iteration': 50,\
                    'population_size':20,\
                    'mutation_probability':0.1,\
                    'elit_ratio': 0.01,\
                    'crossover_probability': 0.5,\
                    'parents_portion': 0.3,\
                    'crossover_type':'uniform',\
-                   'max_iteration_without_improv':None}
+                   'max_iteration_without_improv':10}
 
 varbound = np.concatenate((np.array([[1,10],[1,10]]),\
                     np.repeat(np.array([[0,np.pi]]),led_num,axis=0),\
@@ -541,7 +541,10 @@ model=ga(function=solve_mulmul,dimension=2+2*(led_num+pd_num),variable_type='rea
 model.run()
 
 
-
+#  [6.58784097 1.39906999 2.51767072 1.71149261 0.44961047 3.00300813
+#  0.75960198 3.44975239 0.32773949 6.01638304 4.0172565  6.21361313
+#  1.12743588 0.60778876 0.98749448 1.51515237 3.09978605 3.11723186
+#  3.44269485 1.49790525 3.93403215 5.49953949]
 
 
 
@@ -648,34 +651,34 @@ model.run()
 
 #         # fig.suptitle((f'L={led_num},P={pd_num},Ml={led_m},Mp={pd_m}'))
 
-c = 0 
+# c = 0 
 
-for numli in range(numl.size):
-    for numpi in range(nump.size):
-        for mli in range(ml.size):
-            for mpi in range(mp.size):
-                for alphali in range(alphal.size):
-                    for alphapi in range(alphap.size):
-                        pd_alpha = alphap[alphapi]
-                        led_alpha = alphal[alphali]
-                        pd_num = nump[numpi]
-                        led_num = numl[numli]
-                        led_m = ml[mli]
-                        pd_m = mp[mpi]
+# for numli in range(numl.size):
+#     for numpi in range(nump.size):
+#         for mli in range(ml.size):
+#             for mpi in range(mp.size):
+#                 for alphali in range(alphal.size):
+#                     for alphapi in range(alphap.size):
+#                         pd_alpha = alphap[alphapi]
+#                         led_alpha = alphal[alphali]
+#                         pd_num = nump[numpi]
+#                         led_num = numl[numli]
+#                         led_m = ml[mli]
+#                         pd_m = mp[mpi]
                         
-                        pd_beta = np.deg2rad(360/pd_num)#方位角
-                        pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-                        pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+#                         pd_beta = np.deg2rad(360/pd_num)#方位角
+#                         pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
+#                         pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
 
-                        led_beta = np.deg2rad(360/led_num)#方位角
-                        led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-                        led_ori_car = ori_ang2cart(led_ori_ang) #3xled
+#                         led_beta = np.deg2rad(360/led_num)#方位角
+#                         led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
+#                         led_ori_car = ori_ang2cart(led_ori_ang) #3xled
                         
-                        solve_mulmul()
-                        ans[numli,numpi,mli,mpi,alphali,alphapi,0] = success
-                        ans[numli,numpi,mli,mpi,alphali,alphapi,1] = error_av
-                        c = c+1
-                        print(c)
+#                         solve_mulmul()
+#                         ans[numli,numpi,mli,mpi,alphali,alphapi,0] = success
+#                         ans[numli,numpi,mli,mpi,alphali,alphapi,1] = error_av
+#                         c = c+1
+#                         print(c)
 
 
 
