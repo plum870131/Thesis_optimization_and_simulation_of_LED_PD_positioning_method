@@ -24,6 +24,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, RadioButtons
 import matplotlib.cm as cm
+import matplotlib.colors as colors
 
 
 
@@ -40,17 +41,8 @@ def solve_mulmul():
     global pd_m #= int(pd_m)
     global led_m #= int(led_m)
     
-    # pd_num = int(pd_num)
-    # led_num = int(led_num)
-    # pd_m = int(pd_m)
-    # led_m = int(led_m)
-    #pd_num = 7
-    #pd_m = 3
+
     pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
-    # pd_alpha = np.deg2rad(35)#傾角
-    # pd_beta = np.deg2rad(360/pd_num)#方位角
-    
-    
     #led_num = 5
     #led_m = 10
     led_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
@@ -106,7 +98,8 @@ def solve_mulmul():
     
     in_ang_view = filter_view_angle(in_ang,pd_view)
     out_ang_view = filter_view_angle(out_ang,led_view)
-    
+    in_ang_view[in_ang_view>np.pi/2]=np.nan
+    out_ang_view[out_ang_view>np.pi/2]=np.nan
     
     const = pd_respon * pd_area * led_pt * (led_num+1)/(2*np.pi)
     light = const * np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
@@ -124,15 +117,15 @@ def solve_mulmul():
     
     global bandwidth #= 300
     global shunt #= 50
+    global back_ground,dark_current,NEP
 
-
+    thermal_noise = 4*temp_k*boltz*bandwidth/shunt
     
-    noise = 1*np.sqrt(4*temp_k*boltz*bandwidth/shunt\
-              + 2*elec_charge*bandwidth*light\
+    noise = 1*np.sqrt(thermal_noise\
+              + 2*elec_charge*bandwidth*(light+background+dark_current)\
                   ) #+ 2*elec_charge*bandwidth*dark
     # print(noise[0,0,0,0])
     light_noise = light + noise
-    NEP = noise
     light_floor = NEP*np.floor_divide(light_noise, NEP)
     
     
@@ -140,7 +133,7 @@ def solve_mulmul():
     # -------以下是硬體部分------------------
     
     
-    snr = np.divide(noise,light_floor)
+    # snr = np.divide(noise,light_floor)
     # print(snr)
     
     # filter掉訊號中小於threshold的部分：nan
@@ -175,104 +168,9 @@ def solve_mulmul():
     ledu = led_usable.sum(axis=2)#kp,kr
     pdu = pd_usable.sum(axis=2)#kp,kr
     
-    # print('Led, Pd usable amount: ',ledu,pdu)
-    ref1_led = np.nanargmax(light_led, axis = 3) #kp,kr,ledu,
-    ref1_pd = np.nanargmax(light_pd, axis = 2) #kp,kr,pdu,
-    # =============================================================================
-    # print(light_led)
-    # print(ref1_led)
-    # =============================================================================
     
-    # =============================================================================
-    # print(np.repeat(np.arange(kpos),krot*led_num),'haha')
-    # print(np.tile(np.repeat(np.arange(krot),led_num),kpos),'haha')
-    # print(np.tile(np.arange(led_num),kpos*krot),'haha')
-    # print(ref1_led.flatten(),'haha')
-    # =============================================================================
-    # mask: 遮掉ref1
-    maskled = np.full(light_led.shape, False)
-    maskled[\
-            np.repeat(np.arange(kpos),krot*led_num),\
-            np.tile(np.repeat(np.arange(krot),led_num),kpos),\
-            np.tile(np.arange(led_num),kpos*krot),\
-            ref1_led.flatten()] = True #kp,kr,ledu, pd
-    maskpd = np.full(light_pd.shape, False)
-    maskpd[np.repeat(np.arange(kpos),krot*pd_num),\
-        np.tile(np.repeat(np.arange(krot),pd_num),kpos),\
-        ref1_pd.flatten(),
-        np.tile(np.arange(pd_num),kpos*krot),\
-        ] = True #kp,kr,led, pdu
-    led_data_ref = light_led.copy()
-    led_data_ref .mask = (light_led .mask | ~maskled)
-    led_data_ref = np.sort(led_data_ref,axis=3)[:,:,:,0].reshape(kpos,krot,led_num,1)
-    led_data_other = light_led.copy()
-    led_data_other.mask = (light_led.mask | maskled)
-    
-    # led_data_ref = light_led[maskled].reshape(kpos,krot,-1,1)#kp kr ledu 1
-    #led_data_other = light_led[~maskled].reshape(ledu,-1)# ledu other
-    pd_data_ref = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
-    pd_data_ref.mask = (light_pd.mask | ~maskpd)
-    pd_data_ref = np.sort(pd_data_ref,axis=2)[:,:,0,:].reshape(kpos,krot,1,pd_num)
-    pd_data_other = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
-    pd_data_other.mask = (light_pd .mask | maskpd)
-    # =============================================================================
-    # print(light_pd,'-----------')
-    # print(maskpd)
-    # =============================================================================
-    #pd_data_other = light_pd[~maskpd].reshape(led_num-1,-1) #other, pdu
-    # ref/other
-    #ratio_led = np.power(np.ma.divide(led_data_ref, led_data_other),1/pd_m) #led_u x other
-    ratio_led = np.power(np.divide(led_data_ref, led_data_other),1/pd_m)
-    ratio_pd = np.power(np.divide(pd_data_ref, pd_data_other),1/led_m) #other, pdu
-    # in_ang  krot,kpos,led_num,pd_num
-    
-# =============================================================================
-#     check_inang_ref = (np.sort(np.ma.masked_array(in_ang_view,(light_led.mask | ~maskled)),axis=3)[:,:,:,0].reshape(kpos,krot,-1,1))
-#     check_inang_other = (np.ma.masked_array(in_ang_view,led_data_other.mask))
-#     check_ratio = np.divide(np.cos(check_inang_ref),np.cos(check_inang_other))
-#     check_ratio_sum = np.sum(~np.isclose(ratio_led,check_ratio,equal_nan=True))
-# =============================================================================
-    # print('-------------------------------------')
-    # print('False Ratio:',check_ratio_sum)
-    
-    # =============================================================================
-    # 計算平面normal vector[ledu other 3]
-    # =============================================================================
-    #kpos x krot x ledu x other x 3
-    conf_led = np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1))
-    conf_led_ref = np.sort( (np.ma.masked_array(conf_led,np.tile((light_pd.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
-    conf_led_other = np.ma.masked_array(conf_led,np.tile(led_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
-    nor_led = conf_led_ref - np.multiply(ratio_led.reshape(kpos,krot,led_num,-1,1),conf_led_other)
-    
-# =============================================================================
-#     check_dot_led = np.sum(np.multiply(np.tile(testp_pos,(krot,led_num,pd_num,1,1)).transpose(4,0,1,2,3),nor_led),axis=4)
-#     check_dot_led = np.ma.masked_invalid(check_dot_led)
-#     #check_dot_led = np.sum(~(np.isclose(check_dot_led,np.zeros(led_data_other.shape))|np.isnan(check_dot_led)))
-#     check_dot_led_sum = np.sum(~(np.isclose(check_dot_led,np.zeros(check_dot_led.shape))))
-# =============================================================================
-    
-    
-    # kp kr l p 3
-    conf_pd = np.tile(led_ori_car,(kpos,krot,pd_num,1,1)).transpose(0,1,4,2,3) # kp kr l p
-    # kp kr 1 p 3
-    conf_pd_ref = np.sort( (np.ma.masked_array(conf_pd,np.tile((light_pd.mask | ~maskpd),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
-    # kp kr l p 3
-    conf_pd_other = np.ma.masked_array(conf_pd,np.tile(pd_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
-    # kp kr l p
-    nor_pd = conf_pd_ref - np.multiply(ratio_pd.reshape(kpos,krot,led_num,-1,1),conf_pd_other)
-# =============================================================================
-#     # 驗算dot
-#     check_dot_pd = np.sum(np.multiply(glob_inv_pd_pos.reshape(kpos,krot,1,-1,3),nor_pd),axis=4)
-#     check_dot_pd = np.ma.masked_invalid(check_dot_pd)
-#     check_dot_pd_sum = np.sum(~(np.isclose(check_dot_pd,np.zeros(check_dot_pd.shape))))
-# =============================================================================
-    #print(check_dot_led_sum)
-    # print('-------------------------------------')
-    # print('False normal vector from pd view:' ,check_dot_led_sum)
-    # print('False normal vector from led view:' ,check_dot_pd_sum)
-    
-    
-    
+
+    nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other = get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_car,pd_ori_car)
     # =============================================================================
     # 取led_data_other強度最大者作為ref2_led，當cross的基準
     # 並利用maskled2將data other分兩半
@@ -442,7 +340,7 @@ def solve_mulmul():
     # print('unsolve:',unsolve,', solve:',solve,', success:',success)
     # print(np.average(sol_dis_av))
     
-    return glob_led_pos,glob_led_ori,error ,unsolve,success,error_av
+    # return glob_led_pos,glob_led_ori,error ,unsolve,success,error_av
 
 # =============================================================================
 # # 前置
@@ -462,47 +360,70 @@ error_av = []
 # =======================================================================
 threshold = 10**(-9)
 tolerance = 0.1
+effective = 80
 weight_form = 'mean'
 
 # 硬體參數
-led_pt = 1.7*np.pi #5A VSMA1085250
-pd_saturate = np.inf
-pd_area =1#*10**(-6) #BPW24R  #SFH203PFA
-pd_respon = 6*10**(-6)
-
-
+def set_hardware(led_hard,pd_hard):
+    led_list = [\
+                [1.7*np.pi]
+                ]
+    # respon area NEP darkcurrent shunt
+    pd_list = [\
+               [0.64, 6*10**(-6), 9*10**(-16), 5*10**(-12), 50*10**9],\
+               [0.64, 5.7*10**(-6), 9*10**(-16), 5*10**(-12), 50*10**9],\
+               [0.64, 33*10**(-6), 2*10**(-15), 50*10**(-12), 10*10**9],\
+               [0.64, 100*10**(-6), 2.8*10**(-15), 200*10**(-12), 5*10**9],\
+               [0.38, 36*10**(-6), 3.5*10**(-14), 100*10**(-12), 0.1*10**9]\
+               ]
+    pd_list = np.array(pd_list)
+    print(pd_list[pd_hard,:])
+    print(led_list[led_hard])
+    return led_list[led_hard],pd_list[pd_hard,:]
+led_hard = 0
+pd_hard = 0
+led_para,pd_para = set_hardware(led_hard, pd_hard)
+led_pt = led_para[0]
+pd_respon,pd_area,NEP,darkcurrent,shunt = pd_para
+# led_pt = 1.7*np.pi #5A VSMA1085250
+# pd_saturate = np.inf
+# pd_area =1#*10**(-6) #BPW24R  #SFH203PFA
+# pd_respon = 6*10**(-6)
+# NEP = 10**(-14)
+# background = 790*10**(-9)
+# dark_current = 10**(-12)
 # 演算法參數
 
 bandwidth = 9.7**13/10 # 320-1000nm
-shunt = 1000*10**6 # 10-1000 mega
+# shunt = 1000*10**6 # 10-1000 mega
 
 # =============================================================================
 # # set system
 # =============================================================================
 
-# pd_num = 8
-# led_num = 8
-# led_m = 1
-# pd_m = 1
+pd_num = 8
+led_num = 8
+led_m = 1
+pd_m = 1
 
-ans = np.zeros((14,14,5,5,5,5,2))
-numl = np.array([3,5,8,10,12,15])
-# numl = np.arange(3,16,1)
-nump = np.arange(8,9,1)
-ml = np.array([1,1.5,2,3,5])
-mp = np.array([1,1.5,2,3,5])
-alphal = np.deg2rad(np.arange(10,60,10))
-alphap = np.deg2rad(np.arange(10,60,10))
+# ans = np.zeros((14,14,5,5,5,5,2))
+# numl = np.array([3,5,8,10,12,15])
+# # numl = np.arange(3,16,1)
+# nump = np.arange(8,9,1)
+# ml = np.array([1,1.5,2,3,5])
+# mp = np.array([1,1.5,2,3,5])
+# alphal = np.deg2rad(np.arange(10,60,10))
+# alphap = np.deg2rad(np.arange(10,60,10))
 
-# pd_alpha = np.deg2rad(10)#傾角
-# pd_beta = np.deg2rad(360/pd_num)#方位角
-# pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-# pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+pd_alpha = np.deg2rad(10)#傾角
+pd_beta = np.deg2rad(360/pd_num)#方位角
+pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
+pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
 
-# led_alpha = np.deg2rad(10)#傾角
-# led_beta = np.deg2rad(360/led_num)#方位角
-# led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-# led_ori_car = ori_ang2cart(led_ori_ang) #3xled
+led_alpha = np.deg2rad(10)#傾角
+led_beta = np.deg2rad(360/led_num)#方位角
+led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
+led_ori_car = ori_ang2cart(led_ori_ang) #3xled
 
 
 # =============================================================================
@@ -513,8 +434,85 @@ testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
 testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
 testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
 
+kpos = testp_pos.shape[1]
+krot = testp_rot.shape[1]
+
+solve_mulmul()
+count_kpos = np.nansum(error<tolerance,axis=1)/krot
+count_krot = np.nansum(error<tolerance,axis=0)/kpos
+
+fig = plt.figure(figsize=(12, 8))
+colormap= plt.cm.get_cmap('YlOrRd')
+normalize =  colors.Normalize(vmin=0, vmax=1)
+
+ax = fig.add_subplot(1,3,1,projection='3d')
+ax.set_box_aspect(aspect = (1,1,1))
+ax.set_xlabel('x')
+ax.set_ylabel('y')
+ax.set_zlabel('z')
+ax.grid(True)
+ax.set_xlim3d(-1.5,1.5)
+ax.set_ylim3d(-1.5,1.5)
+ax.set_zlim3d(0,3)
+
+sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalize)
+ax.scatter(0,0,0,color='k',marker='x')
+
+fig.colorbar(sc,shrink=0.3,pad=0.1)
+
+ax = fig.add_subplot(1,3,3,projection='polar')
+
+sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalize)
+cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+fig.colorbar(sc, cax=cbar_ax)
 
 
+ax.grid(True)
+
+ax = fig.add_subplot(1,3,2,projection='3d')
+ax.set_box_aspect(aspect = (1,1,1))
+ax.grid(False)
+ax.set_xlim3d(-1,1)
+ax.set_ylim3d(-1,1)
+ax.set_zlim3d(-1,1)
+ax.xaxis.set_ticklabels([])
+ax.yaxis.set_ticklabels([])
+ax.zaxis.set_ticklabels([])
+ax.set_axis_off()
+
+# ax.scatter(0,0,0,color='k',marker='x')
+
+u, v = np.meshgrid(np.linspace(0,2*np.pi,100),np.linspace(0,np.pi,20))
+x = 1*np.cos(u)*np.sin(v)
+y = 1*np.sin(u)*np.sin(v)
+z = 1*np.cos(v)
+# sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
+ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+a = np.linspace(-1,1,21)
+b = np.linspace(-1,1,21)
+A,B = np.meshgrid(a,b)
+c = np.zeros((21,21))
+ax.plot_surface(A,B,c, color="grey",alpha=0.2)
+
+a,b,c1 = ori_ang2cart(testp_rot[1:,:])
+
+ax.quiver(0,0,0,0,0,-1,color='r')
+ax.quiver(0,0,0,a,b,c1,color = 'b')
+
+# ax = fig.add_subplot(1,3,2,projection='polar')
+# # ax.axis('equal')
+
+
+
+# sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap='rainbow')
+
+
+# fig.colorbar(sc,shrink=0.3,pad=0.1)
+
+# ax.grid(True)
+
+# # fig.suptitle((f'L={led_num},P={pd_num},Ml={led_m},Mp={pd_m}'))
 
 
 
@@ -625,34 +623,34 @@ testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([
 
 #         # fig.suptitle((f'L={led_num},P={pd_num},Ml={led_m},Mp={pd_m}'))
 
-c = 0 
+# c = 0 
 
-for numli in range(numl.size):
-    for numpi in range(nump.size):
-        for mli in range(ml.size):
-            for mpi in range(mp.size):
-                for alphali in range(alphal.size):
-                    for alphapi in range(alphap.size):
-                        pd_alpha = alphap[alphapi]
-                        led_alpha = alphal[alphali]
-                        pd_num = nump[numpi]
-                        led_num = numl[numli]
-                        led_m = ml[mli]
-                        pd_m = mp[mpi]
+# for numli in range(numl.size):
+#     for numpi in range(nump.size):
+#         for mli in range(ml.size):
+#             for mpi in range(mp.size):
+#                 for alphali in range(alphal.size):
+#                     for alphapi in range(alphap.size):
+#                         pd_alpha = alphap[alphapi]
+#                         led_alpha = alphal[alphali]
+#                         pd_num = nump[numpi]
+#                         led_num = numl[numli]
+#                         led_m = ml[mli]
+#                         pd_m = mp[mpi]
                         
-                        pd_beta = np.deg2rad(360/pd_num)#方位角
-                        pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-                        pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+#                         pd_beta = np.deg2rad(360/pd_num)#方位角
+#                         pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
+#                         pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
 
-                        led_beta = np.deg2rad(360/led_num)#方位角
-                        led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-                        led_ori_car = ori_ang2cart(led_ori_ang) #3xled
+#                         led_beta = np.deg2rad(360/led_num)#方位角
+#                         led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
+#                         led_ori_car = ori_ang2cart(led_ori_ang) #3xled
                         
-                        solve_mulmul()
-                        ans[numli,numpi,mli,mpi,alphali,alphapi,0] = success
-                        ans[numli,numpi,mli,mpi,alphali,alphapi,1] = error_av
-                        c = c+1
-                        print(c)
+#                         solve_mulmul()
+#                         ans[numli,numpi,mli,mpi,alphali,alphapi,0] = success
+#                         ans[numli,numpi,mli,mpi,alphali,alphapi,1] = error_av
+#                         c = c+1
+#                         print(c)
 
 
 
