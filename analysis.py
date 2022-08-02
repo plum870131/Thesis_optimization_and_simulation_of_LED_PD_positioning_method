@@ -90,21 +90,27 @@ def solve_mulmul():
     
     # krot,kpos,led_num,pd_num
     dis,in_ang,out_ang = interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car)
-    
+    # print(in_ang,'in')
+    # print(out_ang,'out')
     
     # 在view angle外的寫nan
     
     in_ang_view = filter_view_angle(in_ang,pd_view)
     out_ang_view = filter_view_angle(out_ang,led_view)
-    in_ang_view[in_ang_view>np.pi/2]=np.nan
-    out_ang_view[out_ang_view>np.pi/2]=np.nan
+    # in_ang_view[np.cos(in_ang_view)<0]=np.nan
+    # out_ang_view[np.cos(out_ang_view)<0]=np.nan
+    in_ang_view[in_ang_view>=np.pi/2]=np.nan
+    out_ang_view[out_ang_view>=np.pi/2]=np.nan
+    # print(out_ang_view,'out')
     
     const = pd_respon * pd_area * led_pt * (led_num+1)/(2*np.pi)
     light = const * np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
     # light = np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
     mask_light= np.isnan(light)
-    light[mask_light] = 0
+    # print(np.sum(light<0),'here')
+    # light[mask_light] = 0
     
+    # print(light)
     # =============================================================================
     # 這裡處理加上noise的部分
     # =============================================================================
@@ -123,6 +129,8 @@ def solve_mulmul():
               + 2*elec_charge*bandwidth*(light+background+dark_current)\
                   ) #+ 2*elec_charge*bandwidth*dark
     # print(noise[0,0,0,0])
+    # print(shunt)
+    # print(noise)
     light_noise = light + noise
     light_floor = NEP*np.floor_divide(light_noise, NEP)
     
@@ -137,9 +145,11 @@ def solve_mulmul():
     # filter掉訊號中小於threshold的部分：nan
     # krot,kpos,led_num,pd_num
     light_f = np.copy(light_floor)
+    
     light_f[light_f <= threshold] = np.nan
     light_f[light_f >= pd_saturate] = np.nan
-    
+    # print(light)
+    # print(light_f<=threshold)
     
     
     
@@ -151,6 +161,7 @@ def solve_mulmul():
     
     
     led_usable = np.sum(~np.isnan(light_f),axis=3)>2 #kp,kr,led,
+    
     pd_usable = np.sum(~np.isnan(light_f),axis =2 )>2#kp,kr,pd,
     # pd_usable[2]=False
     # 遮掉unusable
@@ -163,105 +174,14 @@ def solve_mulmul():
     # 並利用maskled將light_led分成ref和other
     # => 計算ratio_led
     # =============================================================================
+    global ledu,pdu
     ledu = led_usable.sum(axis=2)#kp,kr
     pdu = pd_usable.sum(axis=2)#kp,kr
-    
+    # print(ledu,pdu)
     
 
     nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other = get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_car,pd_ori_car)
-    # =============================================================================
-    # 取led_data_other強度最大者作為ref2_led，當cross的基準
-    # 並利用maskled2將data other分兩半
-    # => 計算cross
-    # =============================================================================
-    ref2_led = np.nanargmax(led_data_other, axis = 3)
-    ref2_pd = np.nanargmax(pd_data_other, axis = 2) #pdu,
-    
-    
-    maskled2 = np.full(light_led.shape, False)
-    maskled2[\
-            np.repeat(np.arange(kpos),krot*led_num),\
-            np.tile(np.repeat(np.arange(krot),led_num),kpos),\
-            np.tile(np.arange(led_num),kpos*krot),\
-            ref2_led.flatten()] = True #kp,kr,ledu, pd
-    
-    maskpd2 = np.full(light_pd.shape, False)
-    maskpd2[np.repeat(np.arange(kpos),krot*pd_num),\
-        np.tile(np.repeat(np.arange(krot),pd_num),kpos),\
-        ref2_pd.flatten(),
-        np.tile(np.arange(pd_num),kpos*krot),\
-        ] = True #kp,kr,led, pdu
-    
-    # 將normal vector分兩半
-    
-    nor_led_ref = nor_led.copy()
-    nor_led_ref.mask = np.tile((light_led.mask| ~maskled2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
-    nor_led_ref = np.sort(nor_led_ref,axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
-    nor_led_other = nor_led.copy()
-    nor_led_other.mask = (nor_led.mask|np.tile(maskled2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
-    
-    
-    nor_pd_ref = nor_pd.copy()
-    nor_pd_ref.mask = np.tile((light_pd.mask| ~maskpd2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
-    nor_pd_ref = np.sort(nor_pd_ref,axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
-    nor_pd_other = nor_pd.copy()
-    nor_pd_other.mask = (nor_pd.mask|np.tile(maskpd2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
-    # print(nor_pd_other)
-    # nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
-    # nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
-    
-    # =============================================================================
-    # # 計算各平面交軸：cross vector
-    # =============================================================================
-    # kp kr l p 3
-    cross_led = np.ma.masked_array(np.cross(np.tile(nor_led_ref,(1,1,1,pd_num,1)),nor_led_other)\
-                                   ,nor_led_other.mask )#ledu,other-1,3
-    cross_led = np.divide(cross_led, np.tile(np.sqrt(np.sum(np.square(cross_led),axis=4)),(1,1,1,1,1)).transpose(1,2,3,4,0))#ledu,other-1,3
-    cross_led_mask = np.sum(np.multiply(conf_led_ref, cross_led),axis=4)<0 ## kp kr l p
-    cross_led = np.ma.masked_array(np.where(np.tile(cross_led_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_led,cross_led),\
-                                   nor_led_other.mask)
-# =============================================================================
-#     # 驗算cross
-#     check_cross_led = np.sum(np.multiply(cross_led,(np.tile( \
-#                                                             np.divide(testp_pos,\
-#                                                                       np.tile(np.sqrt(np.sum(np.square(testp_pos),axis=0)),(1,1))\
-#                                                                       ),\
-#                                                             (krot,led_num,pd_num,1,1)).transpose(4,0,1,2,3))\
-#                                          ),axis=4)#kp kr l p
-#     check_cross_led = np.isclose(np.ma.masked_invalid(check_cross_led),np.ones(check_cross_led.shape))
-#     check_cross_led_sum = np.sum(~check_cross_led)
-# =============================================================================
-    cross_led_av = np.nanmean(cross_led,(2,3)) #kp kr 3
-    
-    # cross_led_av = 
-    
-    # kp kr l p 3
-    cross_pd = np.ma.masked_array(np.cross(np.tile(nor_pd_ref,(1,1,led_num,1,1)),nor_pd_other)\
-                                   ,nor_pd_other.mask )#ledu,other-1,3
-    
-    cross_pd = np.divide(cross_pd, np.tile(np.sqrt(np.sum(np.square(cross_pd),axis=4)),(1,1,1,1,1)).transpose(1,2,3,4,0))#ledu,other-1,3
-    
-    cross_pd_mask = np.sum(np.multiply(conf_pd_ref, cross_pd),axis=4)<0 ## kp kr l p
-    cross_pd = np.ma.masked_array(np.where(np.tile(cross_pd_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_pd,cross_pd),\
-                                   nor_pd_other.mask)
-    
-# =============================================================================
-#     # 驗算cross
-#     check_cross_pd = np.sum(np.multiply(cross_pd,(np.tile( \
-#                                                             np.divide(glob_inv_pd_pos,\
-#                                                                       np.tile(np.sqrt(np.sum(np.square(glob_inv_pd_pos),axis=3)),(1,1,1,1)).transpose(1,2,3,0)\
-#                                                                       ),\
-#                                                             (led_num,1,1,1,1)).transpose(1,2,0,3,4))\
-#                                          ),axis=4)#kp kr l p
-#     # print(check_cross_pd.transpose(0,1,3,2,4))
-#     check_cross_pd = np.isclose(np.ma.masked_invalid(check_cross_pd),np.ones(check_cross_pd.shape))
-#     check_cross_pd_sum = np.sum(~check_cross_pd)
-# =============================================================================
-    
-    # print('------------------------------------')
-    # print('False cross vector from pd view:' ,check_cross_led_sum)
-    # print('False cross vector from pd view:' ,check_cross_pd_sum)
-    
+    cross_led,cross_pd = get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpos,krot,nor_led,nor_pd,conf_led_ref,conf_pd_ref)
     
     # weight_form = 'mean''weight'
     
@@ -292,6 +212,7 @@ def solve_mulmul():
     # cross_led_av = np.multiply(cross_led,weight)
     # ori_sol_pd_coor = np.sum(np.multiply(cross_led,np.tile(weight,(3,1,1,1,1)).transpose((1,2,3,4,0))),axis=(2,3)).filled(fill_value=np.nan)
     # ori_sol_led_coor = np.sum(np.multiply(cross_pd,np.tile(weight,(3,1,1,1,1)).transpose((1,2,3,4,0))),axis=(2,3)).filled(fill_value=np.nan)
+    global ori_sol_pd_coor,ori_sol_led_coor
     ori_sol_pd_coor = np.nanmean(cross_led,axis = (2,3))#.filled(fill_value=np.nan) #kp kr 3,
     ori_sol_led_coor = np.nanmean(cross_pd,axis = (2,3))#.filled(fill_value=np.nan) #kp kr 3,
     # print(ori_sol_pd_coor.shape,ori_sol_led_coor.shape)
@@ -313,12 +234,12 @@ def solve_mulmul():
     # print('False dis:' ,check_dis)
     # print('------------------------------------')
     global sol_dis_av
-    sol_dis_av= np.sum(np.multiply(sol_dis,weight),axis=(2,3))
+    # sol_dis_av= np.sum(np.multiply(sol_dis,weight),axis=(2,3))
     # print(sol_dis_av.shape,'~~~')
     sol_dis_av = np.nanmean(sol_dis,axis = (2,3))#kp kr
     # print()
     global error
-    error = (np.sum(np.square(np.multiply(cross_led_av,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
+    error = (np.sum(np.square(np.multiply(ori_sol_pd_coor,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
     global  unsolve
     global  solve
     solve = np.ma.count(error)
@@ -340,31 +261,9 @@ def solve_mulmul():
     
     # return glob_led_pos,glob_led_ori,error ,unsolve,success,error_av
 
-# =============================================================================
-# # 前置
-# =============================================================================
-
-# 從演算法裡面copy出來的有用資訊
-sol_dis_av=[]
-unsolve = 0
-success = 0
-error = []
-error_av = []
-
-
-
-# =============================================================================
-# # set environment
-# =======================================================================
-threshold = 10**(-9)
-tolerance = 0.1
-effective = 80
-weight_form = 'mean'
-
-# 硬體參數
 def set_hardware(led_hard,pd_hard):
     led_list = [\
-                [1.7*np.pi]
+                1.7*np.pi,80*10**(-3)
                 ]
     # respon area NEP darkcurrent shunt
     pd_list = [\
@@ -378,30 +277,6 @@ def set_hardware(led_hard,pd_hard):
     # print(pd_list[pd_hard,:])
     # print(led_list[led_hard])
     return led_list[led_hard],pd_list[pd_hard,:]
-led_hard = 0
-pd_hard = 0
-led_para,pd_para = set_hardware(led_hard, pd_hard)
-led_pt = led_para[0]
-pd_respon,pd_area,NEP,dark_current,shunt = pd_para
-
-background = 740*10**(-6)
-# led_pt = 1.7*np.pi #5A VSMA1085250
-pd_saturate = np.inf
-# pd_area =1#*10**(-6) #BPW24R  #SFH203PFA
-# pd_respon = 6*10**(-6)
-# NEP = 10**(-14)
-# background = 790*10**(-9)
-# dark_current = 10**(-12)
-# 演算法參數
-
-bandwidth = 9.7**13/10 # 320-1000nm
-# shunt = 1000*10**6 # 10-1000 mega
-
-# mode = 'scenario'
-mode = 'analysis'
-# mode = 'interactive_1to1'
-# mode = 'interactive_mulmu'
-scenario = 0
 
 def set_scenario(scenario):
     if scenario ==0:
@@ -434,6 +309,69 @@ def set_scenario(scenario):
         testp_rot = np.stack((np.zeros(u.shape),v,u))
         # testp_rot = np.concatenate((testp_rot,np.array([[]])))
     return testp_pos,testp_rot
+
+def set_config(config_num,led_alpha,pd_alpha):
+    if config_num ==0:
+        # pd_alpha = np.deg2rad(10)
+        # led_alpha = np.deg2rad(10)
+        
+        pd_beta = np.deg2rad(360/pd_num)#方位角
+        pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
+        pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+    
+        led_beta = np.deg2rad(360/led_num)#方位角
+        led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
+        led_ori_car = ori_ang2cart(led_ori_ang) #3xled
+    return led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
+
+# =============================================================================
+# # 前置
+# =============================================================================
+
+# 從演算法裡面copy出來的有用資訊
+sol_dis_av=[]
+unsolve = 0
+success = 0
+error = []
+error_av = []
+ledu = 0
+pdu = 0
+ori_sol_pd_coor = []
+ori_sol_led_coor = []
+
+# =============================================================================
+# # set environment
+# =======================================================================
+threshold = 10**(-7)
+tolerance = 0.1
+effective = 80
+weight_form = 'mean'
+
+# 硬體參數
+
+led_hard = 1
+pd_hard = 3
+led_para,pd_para = set_hardware(led_hard, pd_hard)
+led_pt = led_para
+pd_respon,pd_area,NEP,dark_current,shunt = pd_para
+
+background = 740*10**(-6)
+pd_saturate = np.inf
+
+
+bandwidth = 9.7**13/10 # 320-1000nm
+bandwidth = 370*10**6
+# shunt = 1000*10**6 # 10-1000 mega
+
+# mode = 'scenario'
+# mode = 'analysis'
+mode = 'interactive_1to1'
+# mode = 'interactive_mulmu'
+scenario = 0
+config_num = 0
+
+
+
 
 if mode =='scenario':
     testp_pos,testp_rot = set_scenario(scenario)
@@ -562,7 +500,8 @@ elif mode=='analysis':
     colormap= plt.cm.get_cmap('YlOrRd')
     normalizep =  colors.Normalize(vmin=0, vmax=krot)
     normalizer =  colors.Normalize(vmin=0, vmax=kpos)
-    fig.subplots_adjust(wspace=0.5)
+    fig.subplots_adjust(wspace=0.3)
+    
     ax = fig.add_subplot(1,3,1,projection='3d')
     ax.set_box_aspect(aspect = (1,1,1))
     ax.set_xlabel('x')
@@ -581,43 +520,172 @@ elif mode=='analysis':
     sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalizep,alpha=0.5)
     ax.scatter(0,0,0,color='k',marker='x')
     
-    fig.colorbar(sc,shrink=0.3,pad=0.12)
+    colorbar = fig.colorbar(sc,shrink=0.3,pad=0.15)
+    ax.set_title('平移樣本點')
+    
+    colorbar.ax.set_ylabel('容許範圍內的樣本點數量')
     
     
     
-    ax = fig.add_subplot(1,3,3,projection='polar')
+    ax = fig.add_subplot(1,3,2,projection='polar')
     
     sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
-    fig.colorbar(sc,shrink=0.3,pad=0.12)
+    colorbar = fig.colorbar(sc,shrink=0.3,pad=0.15)
+    colorbar.ax.set_ylabel('容許範圍內的樣本點數量')
+    ax.set_title('旋轉樣本點')
+    ax.text(1,1,'pitch(degree)',rotation = 15)
+    ax.text(np.deg2rad(60),80,'yaw(degree)')
     # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     # fig.colorbar(sc, cax=cbar_ax)
     
     
     ax.grid(True)
     
+
+elif mode =='interactive_1to1':
+
+    # initiate
+    testp_pos = np.array([[0,1,1]]).T # 3x?
+    #kpos = testp_pos.shape[1]
+    testp_rot = np.array([[np.pi,0,0]]).T
+    #krot = testp_rot.shape[1]
+    pd_num = 7
+    led_num = 7
+    led_m = 3
+    pd_m = 3
     
+    pd_alpha = np.deg2rad(10)
+    led_alpha = np.deg2rad(10)
     
-
-# ax = fig.add_subplot(1,3,2,projection='polar')
-# # ax.axis('equal')
+    led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
 
 
+    axis_color = 'lightgoldenrodyellow'
 
-# sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap='rainbow')
-
-
-# fig.colorbar(sc,shrink=0.3,pad=0.1)
-
-# ax.grid(True)
-
-# # fig.suptitle((f'L={led_num},P={pd_num},Ml={led_m},Mp={pd_m}'))
-
-
-
-
-
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(121,projection='3d')
+    ax.set_box_aspect(aspect = (1,1,1))
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    ax.grid(True)
+    ax.set_xlim3d(-1.5,1.5)
+    ax.set_ylim3d(-1.5,1.5)
+    ax.set_zlim3d(0,3)
 
 
+    # Adjust the subplots region to leave some space for the sliders and buttons
+    fig.subplots_adjust(left=0.25, bottom=0.25)
+
+
+    # draw sphere
+    u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+    x = 0.1*np.cos(u)*np.sin(v)
+    y = 0.1*np.sin(u)*np.sin(v)
+    z = 0.1*np.cos(v)
+    sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
+    ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+    arrow = 0.5*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
+    ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=[0.2,0.5], color='b')
+    arrow_rot = rotate_mat(testp_rot) @ arrow
+    axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color='b')
+
+
+    solve_mulmul()
+    pdu = pdu[0,0]
+    ledu = ledu[0,0]
+    error = error[0,0]
+    dis = sol_dis_av[0,0]
+    vec = ori_sol_pd_coor[0,0,:]
+
+    #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
+    if ledu==0|pdu==0:
+        ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+        text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
+        error_vec =ax.quiver (0,0,0,1,1,1,alpha=0)
+    else:
+        ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
+        text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+        error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'r')
+        # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
+
+        #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
+    #print(vec,dis)
+
+    # Add two sliders for tweaking the parameters
+    text = ['x','y','z','roll','pitch','yaw','led amount','pd amount','led m','pd m','shunt','bandwidth','led_alpha','pd_alpha']
+    init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num,led_m,pd_m,shunt,bandwidth,led_alpha,pd_alpha))
+    min_val = [-1.5,-1.5,0,0,0,0,3,3,2,2,10**6,10**3,0,0]
+    max_val = [1.5,1.5,3,2*np.pi,2*np.pi,2*np.pi,20,20,70,70,10**9,10**12,np.pi,np.pi]
+    sliders = []
+    for i in np.arange(len(min_val)):
+
+        axamp = plt.axes([0.74, 0.8-(i*0.05), 0.12, 0.02])
+        # Slider
+        # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
+        if 8>i >5:
+            s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i],valstep=1)
+        else:
+            s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
+        sliders.append(s)
+
+
+    # Define an action for modifying the line when any slider's value changes
+    def sliders_on_changed(val):
+
+        global  sphere,axis_item,ans,error_vec
+        ax.collections.remove(sphere)
+        ax.collections.remove(axis_item)
+        ax.collections.remove(ans)
+        ax.collections.remove(error_vec)
+        #ax.collections.remove(text_num)
+        
+        global testp_pos,testp_rot
+        testp_pos = np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T
+        testp_rot = np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T
+        arrow_rot = rotate_mat(np.array([sliders[3].val,sliders[4].val,sliders[5].val])) @ arrow
+        sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
+        axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color='b')
+        
+        global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,shunt,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
+        led_num = int(sliders[6].val)
+        pd_num = int(sliders[7].val)
+        led_m = sliders[8].val
+        pd_m = sliders[9].val
+        shunt = sliders[10].val
+        bandwidth = sliders[11].val
+        led_alpha = sliders[12].val
+        pd_alpha = sliders[13].val
+        led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
+
+        
+        solve_mulmul()
+        
+        
+        pdu = pdu[0,0]
+        ledu = ledu[0,0]
+        error = error[0,0]
+        dis = sol_dis_av[0,0]
+        vec = ori_sol_pd_coor[0,0,:]
+    
+        #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
+        if ledu==0|pdu==0:
+            ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+            text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
+            error_vec =ax.quiver (0,0,0,1,1,1,alpha=0)
+        else:
+            ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
+            text_item .set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+            error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'r')
+            # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
+
+        fig.canvas.draw_idle()
+
+
+    for i in np.arange(len(min_val)):
+        #samp.on_changed(update_slider)
+        sliders[i].on_changed(sliders_on_changed)
 # ans = np.zeros((18,18,2))
 # fig1 = plt.figure(figsize=(15, 15))
 # fig2 = plt.figure(figsize=(15, 15))

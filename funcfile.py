@@ -450,3 +450,82 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
     # kp kr l p
     nor_pd = conf_pd_ref - np.multiply(ratio_pd.reshape(kpos,krot,led_num,-1,1),conf_pd_other)
     return nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other
+
+
+def get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpos,krot,nor_led,nor_pd,conf_led_ref,conf_pd_ref):
+    # =============================================================================
+    # 取led_data_other強度最大者作為ref2_led，當cross的基準
+    # 並利用maskled2將data other分兩半
+    # => 計算cross
+    # =============================================================================
+    ref2_led = np.nanargmax(led_data_other, axis = 3)
+    ref2_pd = np.nanargmax(pd_data_other, axis = 2) #pdu,
+    
+    
+    maskled2 = np.full(light_led.shape, False)
+    maskled2[\
+            np.repeat(np.arange(kpos),krot*led_num),\
+            np.tile(np.repeat(np.arange(krot),led_num),kpos),\
+            np.tile(np.arange(led_num),kpos*krot),\
+            ref2_led.flatten()] = True #kp,kr,ledu, pd
+    
+    maskpd2 = np.full(light_pd.shape, False)
+    maskpd2[np.repeat(np.arange(kpos),krot*pd_num),\
+        np.tile(np.repeat(np.arange(krot),pd_num),kpos),\
+        ref2_pd.flatten(),
+        np.tile(np.arange(pd_num),kpos*krot),\
+        ] = True #kp,kr,led, pdu
+    
+    # 將normal vector分兩半
+    
+    nor_led_ref = nor_led.copy()
+    nor_led_ref.mask = np.tile((light_led.mask| ~maskled2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
+    nor_led_ref = np.sort(nor_led_ref,axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
+    nor_led_other = nor_led.copy()
+    nor_led_other.mask = (nor_led.mask|np.tile(maskled2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
+    
+    
+    nor_pd_ref = nor_pd.copy()
+    nor_pd_ref.mask = np.tile((light_pd.mask| ~maskpd2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
+    nor_pd_ref = np.sort(nor_pd_ref,axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
+    nor_pd_other = nor_pd.copy()
+    nor_pd_other.mask = (nor_pd.mask|np.tile(maskpd2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
+    # print(nor_pd_other)
+    # nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
+    # nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
+    
+    # =============================================================================
+    # # 計算各平面交軸：cross vector
+    # =============================================================================
+    # kp kr l p 3
+    cross_led = np.ma.masked_array(np.cross(np.tile(nor_led_ref,(1,1,1,pd_num,1)),nor_led_other)\
+                                   ,nor_led_other.mask )#ledu,other-1,3
+    cross_led = np.divide(cross_led, np.tile(np.sqrt(np.sum(np.square(cross_led),axis=4)),(1,1,1,1,1)).transpose(1,2,3,4,0))#ledu,other-1,3
+    cross_led_mask = np.sum(np.multiply(conf_led_ref, cross_led),axis=4)<0 ## kp kr l p
+    cross_led = np.ma.masked_array(np.where(np.tile(cross_led_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_led,cross_led),\
+                                   nor_led_other.mask)
+# =============================================================================
+#     # 驗算cross
+#     check_cross_led = np.sum(np.multiply(cross_led,(np.tile( \
+#                                                             np.divide(testp_pos,\
+#                                                                       np.tile(np.sqrt(np.sum(np.square(testp_pos),axis=0)),(1,1))\
+#                                                                       ),\
+#                                                             (krot,led_num,pd_num,1,1)).transpose(4,0,1,2,3))\
+#                                          ),axis=4)#kp kr l p
+#     check_cross_led = np.isclose(np.ma.masked_invalid(check_cross_led),np.ones(check_cross_led.shape))
+#     check_cross_led_sum = np.sum(~check_cross_led)
+# =============================================================================
+    # cross_led_av = np.nanmean(cross_led,(2,3)) #kp kr 3
+    
+    # cross_led_av = 
+    
+    # kp kr l p 3
+    cross_pd = np.ma.masked_array(np.cross(np.tile(nor_pd_ref,(1,1,led_num,1,1)),nor_pd_other)\
+                                   ,nor_pd_other.mask )#ledu,other-1,3
+    
+    cross_pd = np.divide(cross_pd, np.tile(np.sqrt(np.sum(np.square(cross_pd),axis=4)),(1,1,1,1,1)).transpose(1,2,3,4,0))#ledu,other-1,3
+    
+    cross_pd_mask = np.sum(np.multiply(conf_pd_ref, cross_pd),axis=4)<0 ## kp kr l p
+    cross_pd = np.ma.masked_array(np.where(np.tile(cross_pd_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_pd,cross_pd),\
+                                   nor_pd_other.mask)
+    return cross_led,cross_pd

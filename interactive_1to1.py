@@ -73,6 +73,9 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     in_ang_view = filter_view_angle(in_ang,pd_view)
     out_ang_view = filter_view_angle(out_ang,led_view)
     
+    in_ang_view[np.cos(in_ang_view)<0]=np.nan
+    out_ang_view[np.cos(out_ang_view)<0]=np.nan
+    
     
     const = pd_respon * pd_area * led_pt * (led_num+1)/(2*np.pi)
     light = const * np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
@@ -88,16 +91,17 @@ def solve_mulmul(testp_pos,testp_rot,led_num,pd_num,led_m,pd_m):
     bandwidth = 300
     elec_charge = 1.60217663 * 10**(-19)
     shunt = 50
+    background = 10**(-6)
+    dark_current = 10**(-12)
+    NEP = 10**(-16)
     
-    noise = np.sqrt(4*temp_k*boltz*bandwidth/shunt\
-              + 2*elec_charge*bandwidth*light\
+    thermal_noise = 4*temp_k*boltz*bandwidth/shunt
+    
+    noise = 1*np.sqrt(thermal_noise\
+              + 2*elec_charge*bandwidth*(light+background+dark_current)\
                   ) #+ 2*elec_charge*bandwidth*dark
     # print(noise[0,0,0,0])
     light_noise = light + noise
-    light_noise[light_noise >= pd_saturate] = pd_saturate
-    
-    
-    NEP = noise
     light_floor = NEP*np.floor_divide(light_noise, NEP)
     
     # -------以下是硬體部分------------------
