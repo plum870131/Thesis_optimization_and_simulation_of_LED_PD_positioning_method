@@ -26,10 +26,8 @@ from matplotlib.widgets import Slider, Button, RadioButtons
 import matplotlib.cm as cm
 import matplotlib.colors as colors
 
-
-
-
-
+plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
+plt.rcParams['axes.unicode_minus'] = False 
 
 def solve_mulmul():
 # set environment
@@ -377,16 +375,18 @@ def set_hardware(led_hard,pd_hard):
                [0.38, 36*10**(-6), 3.5*10**(-14), 100*10**(-12), 0.1*10**9]\
                ]
     pd_list = np.array(pd_list)
-    print(pd_list[pd_hard,:])
-    print(led_list[led_hard])
+    # print(pd_list[pd_hard,:])
+    # print(led_list[led_hard])
     return led_list[led_hard],pd_list[pd_hard,:]
 led_hard = 0
 pd_hard = 0
 led_para,pd_para = set_hardware(led_hard, pd_hard)
 led_pt = led_para[0]
-pd_respon,pd_area,NEP,darkcurrent,shunt = pd_para
+pd_respon,pd_area,NEP,dark_current,shunt = pd_para
+
+background = 740*10**(-6)
 # led_pt = 1.7*np.pi #5A VSMA1085250
-# pd_saturate = np.inf
+pd_saturate = np.inf
 # pd_area =1#*10**(-6) #BPW24R  #SFH203PFA
 # pd_respon = 6*10**(-6)
 # NEP = 10**(-14)
@@ -397,108 +397,206 @@ pd_respon,pd_area,NEP,darkcurrent,shunt = pd_para
 bandwidth = 9.7**13/10 # 320-1000nm
 # shunt = 1000*10**6 # 10-1000 mega
 
-# =============================================================================
-# # set system
-# =============================================================================
+# mode = 'scenario'
+mode = 'analysis'
+# mode = 'interactive_1to1'
+# mode = 'interactive_mulmu'
+scenario = 0
 
-pd_num = 8
-led_num = 8
-led_m = 1
-pd_m = 1
+def set_scenario(scenario):
+    if scenario ==0:
+        testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
+        # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
+        testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
+        testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
+    elif scenario ==1:
+        testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 3:3:10j].reshape((3,-1)) # 3x?
+        testp_rot = np.array([[np.pi,0,0]]).T
+    elif scenario ==2:
+        sample = 6
+        dis_sample = np.linspace(0,3,4+1)[1:]
+        # testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
+        u, v = np.meshgrid(np.linspace(0,2*np.pi,2*sample+1)[0:-1:1],np.linspace(0,np.pi,sample+1)[1:-1:1])
+        u = np.append(u.reshape((-1,)),0)
+        v = np.append(v.reshape((-1,)),0)
+        x = (1*np.cos(u)*np.sin(v))
+        y = (1*np.sin(u)*np.sin(v))
+        z =( 1*np.cos(v))
+        U = np.stack((x,y,z))
+        print(U.shape)
+        U = np.tile(U,(dis_sample.size,1,1)).transpose((1,2,0))
+        testp_pos = np.multiply(dis_sample.reshape((1,1,-1)),U)
+        # testp_pos = np.concatenate((U,2*U,3*U),axis = 0)
+        testp_pos = testp_pos.reshape((3,-1))
+        # testp_pos = 3*U
+        print(testp_pos.shape[1],'kpos')
+        
+        testp_rot = np.stack((np.zeros(u.shape),v,u))
+        # testp_rot = np.concatenate((testp_rot,np.array([[]])))
+    return testp_pos,testp_rot
 
-# ans = np.zeros((14,14,5,5,5,5,2))
-# numl = np.array([3,5,8,10,12,15])
-# # numl = np.arange(3,16,1)
-# nump = np.arange(8,9,1)
-# ml = np.array([1,1.5,2,3,5])
-# mp = np.array([1,1.5,2,3,5])
-# alphal = np.deg2rad(np.arange(10,60,10))
-# alphap = np.deg2rad(np.arange(10,60,10))
+if mode =='scenario':
+    testp_pos,testp_rot = set_scenario(scenario)
+    # testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
+    # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
+    # testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
+    # testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
 
-pd_alpha = np.deg2rad(10)#傾角
-pd_beta = np.deg2rad(360/pd_num)#方位角
-pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+    kpos = testp_pos.shape[1]
+    krot = testp_rot.shape[1]
 
-led_alpha = np.deg2rad(10)#傾角
-led_beta = np.deg2rad(360/led_num)#方位角
-led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-led_ori_car = ori_ang2cart(led_ori_ang) #3xled
+    # solve_mulmul()
+    # count_kpos = np.nansum(error<tolerance,axis=1)/krot
+    # count_krot = np.nansum(error<tolerance,axis=0)/kpos
+
+    fig = plt.figure(figsize=(12, 8))
+    # colormap= plt.cm.get_cmap('YlOrRd')
+    # normalize =  colors.Normalize(vmin=0, vmax=1)
+
+    ax = fig.add_subplot(1,3,1,projection='3d')
+    ax.set_box_aspect(aspect = (1,1,1))
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    ax.grid(True)
+    ax.set_title('平移樣本點')
+    if scenario ==2:
+        
+        ax.set_xlim3d(-3,3)
+        ax.set_ylim3d(-3,3)
+        ax.set_zlim3d(-3,3)
+    else:
+        ax.set_xlim3d(-1.5,1.5)
+        ax.set_ylim3d(-1.5,1.5)
+        ax.set_zlim3d(0,3)
+
+    sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],alpha=0.5)
+    ax.scatter(0,0,0,color='k',marker='x')
+
+    # fig.colorbar(sc,shrink=0.3,pad=0.1)
+
+    ax = fig.add_subplot(1,3,3,projection='polar')
+
+    sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  )
+    # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    # fig.colorbar(sc, cax=cbar_ax)
+    ax.set_title('以極座標系呈現Pitch,Yaw')
+
+    ax.grid(True)
+
+    ax = fig.add_subplot(1,3,2,projection='3d')
+    ax.set_title('旋轉樣本點')
+    ax.set_box_aspect(aspect = (1,1,1))
+    ax.grid(False)
+    ax.set_xlim3d(-1,1)
+    ax.set_ylim3d(-1,1)
+    ax.set_zlim3d(-1,1)
+    ax.xaxis.set_ticklabels([])
+    ax.yaxis.set_ticklabels([])
+    ax.zaxis.set_ticklabels([])
+    ax.set_axis_off()
+
+    # ax.scatter(0,0,0,color='k',marker='x')
+
+    u, v = np.meshgrid(np.linspace(0,2*np.pi,100),np.linspace(0,np.pi,20))
+    x = 1*np.cos(u)*np.sin(v)
+    y = 1*np.sin(u)*np.sin(v)
+    z = 1*np.cos(v)
+    # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
+    ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+    a = np.linspace(-1,1,21)
+    b = np.linspace(-1,1,21)
+    A,B = np.meshgrid(a,b)
+    c = np.zeros((21,21))
+    ax.plot_surface(A,B,c, color="grey",alpha=0.2)
+
+    a,b,c1 = ori_ang2cart(testp_rot[1:,:])
+
+    ax.quiver(0,0,0,0,0,-1,color='r')
+    ax.quiver(0,0,0,a,b,c1,color = 'b')
 
 
-# =============================================================================
-# # set sample points
-# =============================================================================
-testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
-testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
-testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
-testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
-
-kpos = testp_pos.shape[1]
-krot = testp_rot.shape[1]
-
-solve_mulmul()
-count_kpos = np.nansum(error<tolerance,axis=1)/krot
-count_krot = np.nansum(error<tolerance,axis=0)/kpos
-
-fig = plt.figure(figsize=(12, 8))
-colormap= plt.cm.get_cmap('YlOrRd')
-normalize =  colors.Normalize(vmin=0, vmax=1)
-
-ax = fig.add_subplot(1,3,1,projection='3d')
-ax.set_box_aspect(aspect = (1,1,1))
-ax.set_xlabel('x')
-ax.set_ylabel('y')
-ax.set_zlabel('z')
-ax.grid(True)
-ax.set_xlim3d(-1.5,1.5)
-ax.set_ylim3d(-1.5,1.5)
-ax.set_zlim3d(0,3)
-
-sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalize)
-ax.scatter(0,0,0,color='k',marker='x')
-
-fig.colorbar(sc,shrink=0.3,pad=0.1)
-
-ax = fig.add_subplot(1,3,3,projection='polar')
-
-sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalize)
-cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-fig.colorbar(sc, cax=cbar_ax)
-
-
-ax.grid(True)
-
-ax = fig.add_subplot(1,3,2,projection='3d')
-ax.set_box_aspect(aspect = (1,1,1))
-ax.grid(False)
-ax.set_xlim3d(-1,1)
-ax.set_ylim3d(-1,1)
-ax.set_zlim3d(-1,1)
-ax.xaxis.set_ticklabels([])
-ax.yaxis.set_ticklabels([])
-ax.zaxis.set_ticklabels([])
-ax.set_axis_off()
-
-# ax.scatter(0,0,0,color='k',marker='x')
-
-u, v = np.meshgrid(np.linspace(0,2*np.pi,100),np.linspace(0,np.pi,20))
-x = 1*np.cos(u)*np.sin(v)
-y = 1*np.sin(u)*np.sin(v)
-z = 1*np.cos(v)
-# sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-a = np.linspace(-1,1,21)
-b = np.linspace(-1,1,21)
-A,B = np.meshgrid(a,b)
-c = np.zeros((21,21))
-ax.plot_surface(A,B,c, color="grey",alpha=0.2)
-
-a,b,c1 = ori_ang2cart(testp_rot[1:,:])
-
-ax.quiver(0,0,0,0,0,-1,color='r')
-ax.quiver(0,0,0,a,b,c1,color = 'b')
+elif mode=='analysis':
+    pd_num = 8
+    led_num = 8
+    led_m = 1
+    pd_m = 1
+    
+    # ans = np.zeros((14,14,5,5,5,5,2))
+    # numl = np.array([3,5,8,10,12,15])
+    # # numl = np.arange(3,16,1)
+    # nump = np.arange(8,9,1)
+    # ml = np.array([1,1.5,2,3,5])
+    # mp = np.array([1,1.5,2,3,5])
+    # alphal = np.deg2rad(np.arange(10,60,10))
+    # alphap = np.deg2rad(np.arange(10,60,10))
+    
+    pd_alpha = np.deg2rad(10)#傾角
+    pd_beta = np.deg2rad(360/pd_num)#方位角
+    pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
+    pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+    
+    led_alpha = np.deg2rad(10)#傾角
+    led_beta = np.deg2rad(360/led_num)#方位角
+    led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
+    led_ori_car = ori_ang2cart(led_ori_ang) #3xled
+    
+    
+    # =============================================================================
+    # # set sample points
+    # =============================================================================
+    # testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
+    # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
+    # testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
+    # testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
+    testp_pos,testp_rot = set_scenario(scenario)
+    kpos = testp_pos.shape[1]
+    krot = testp_rot.shape[1]
+    
+    solve_mulmul()
+    count_kpos = np.nansum(error<tolerance,axis=1)
+    count_krot = np.nansum(error<tolerance,axis=0)
+    
+    fig = plt.figure(figsize=(12, 8))
+    colormap= plt.cm.get_cmap('YlOrRd')
+    normalizep =  colors.Normalize(vmin=0, vmax=krot)
+    normalizer =  colors.Normalize(vmin=0, vmax=kpos)
+    fig.subplots_adjust(wspace=0.5)
+    ax = fig.add_subplot(1,3,1,projection='3d')
+    ax.set_box_aspect(aspect = (1,1,1))
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    ax.grid(True)
+    if scenario ==2:
+        ax.set_xlim3d(-3,3)
+        ax.set_ylim3d(-3,3)
+        ax.set_zlim3d(-3,3)
+    else:
+        ax.set_xlim3d(-1.5,1.5)
+        ax.set_ylim3d(-1.5,1.5)
+        ax.set_zlim3d(0,3)
+    
+    sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalizep,alpha=0.5)
+    ax.scatter(0,0,0,color='k',marker='x')
+    
+    fig.colorbar(sc,shrink=0.3,pad=0.12)
+    
+    
+    
+    ax = fig.add_subplot(1,3,3,projection='polar')
+    
+    sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
+    fig.colorbar(sc,shrink=0.3,pad=0.12)
+    # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    # fig.colorbar(sc, cax=cbar_ax)
+    
+    
+    ax.grid(True)
+    
+    
+    
 
 # ax = fig.add_subplot(1,3,2,projection='polar')
 # # ax.axis('equal')
