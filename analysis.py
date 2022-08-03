@@ -190,25 +190,11 @@ def solve_mulmul():
     mask_pd = ~np.isnan(cross_pd[:,:,:,:,0].filled(fill_value=np.nan))
     mask_total = (mask_led|mask_pd)# kp kr l p 3
     mask_count = np.sum(mask_total,axis=(2,3)).reshape((kpos,krot,1,1))
-    if weight_form =='mean':
-        # weight = np.nansum(~mask_total[:,:,:,:,0],axis=(2,3)).reshape(kpos,krot,1,1) 
-        weight = np.divide(mask_total,mask_count)
-    elif weight_form =='weight':
-        weight = np.ma.masked_array(light_f,mask_total[:,:,:,:,0])
-        weight = np.power(weight,3)
-        weight_sum = np.nansum(weight,axis=(2,3)).reshape((kpos,krot,1,1))
-        weight = np.divide(weight,weight_sum)
+
     
     # 答案求平均（忽略nan）
     
-    
-    
-    # weight = np.nansum(np.power(light_f,1/3),axis=(2,3)).reshape(kpos,krot,1,1) # kp kr
-    # weight = np.divide(np.power(light_f,1/3),weight)
-    # check = np.nansum(weight,axis=(2,3))
-    # print(light_f[3,3,:,:])
-    # print(check)
-    
+
     # cross_led_av = np.multiply(cross_led,weight)
     # ori_sol_pd_coor = np.sum(np.multiply(cross_led,np.tile(weight,(3,1,1,1,1)).transpose((1,2,3,4,0))),axis=(2,3)).filled(fill_value=np.nan)
     # ori_sol_led_coor = np.sum(np.multiply(cross_pd,np.tile(weight,(3,1,1,1,1)).transpose((1,2,3,4,0))),axis=(2,3)).filled(fill_value=np.nan)
@@ -240,22 +226,7 @@ def solve_mulmul():
     # print()
     global error
     error = (np.sum(np.square(np.multiply(ori_sol_pd_coor,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
-    global  unsolve
-    global  solve
-    solve = np.ma.count(error)
-    unsolve = np.ma.count_masked(error)
-    error = error.filled(np.inf) # masked改成inf
-    error[error==0] = np.nan # sqrt不能處理0
-    error = np.sqrt(error)
-    error[np.isnan(error)]= 0
-    
 
-    
-    global tolerance 
-    global success
-    success = np.sum(error<tolerance)
-    global error_av 
-    error_av = np.mean(error[error<tolerance])
     # print('unsolve:',unsolve,', solve:',solve,', success:',success)
     # print(np.average(sol_dis_av))
     
@@ -366,7 +337,8 @@ bandwidth = 370*10**3
 # mode = 'scenario'
 # mode = 'analysis'
 # mode = 'interactive_1to1'
-mode = 'interactive_mulmul'
+# mode = 'interactive_mulmul'
+mode = 'save'
 scenario = 0
 config_num = 0
 
@@ -856,7 +828,34 @@ elif mode =='interactive_mulmul':
         #samp.on_changed(update_slider)
         sliders[i].on_changed(sliders_on_changed)
 
-
+elif mode=='save':
+    testp_pos,testp_rot = set_scenario(scenario)
+    
+    # ans = np.zeros((14,14,5,5,5,5,2))
+    numl = np.array([3,5,8,10,15])
+    nump = np.array([3,5,8,10,15])
+    ml = np.array([1,1.5,2,3,5])
+    mp = np.array([1,1.5,2,3,5])
+    alphal = np.deg2rad(np.array([5,10,15,30,50]))
+    alphap = np.deg2rad(np.array([5,10,15,30,50]))
+    
+    
+    for led_num in numl:
+        for pd_num in nump:
+            for led_m in ml:
+                for pd_m in mp:
+                    for led_alpha in alphal:
+                        for pd_alpha in alphap:
+                            led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
+                            
+                            solve_mulmul()
+                            error = error.filled(np.nan)
+                            
+                            np.save(f'./data_error/{led_num} {pd_num} {led_m} {pd_m} {np.round(np.rad2deg(led_alpha))} {np.round(np.rad2deg(pd_alpha))}.npy',error)
+    
+    
+    
+    
 # ans = np.zeros((18,18,2))
 # fig1 = plt.figure(figsize=(15, 15))
 # fig2 = plt.figure(figsize=(15, 15))
