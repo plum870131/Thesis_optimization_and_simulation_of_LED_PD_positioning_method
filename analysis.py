@@ -335,7 +335,7 @@ led_pt = led_para
 pd_respon,pd_area,NEP,dark_current,shunt,capacitance = pd_para
 
 background = 5100*10**(-6)#
-background = 0#740*10**(-6)
+# background = 0#740*10**(-6)
 pd_saturate = 10*10**(-3)#np.inf
 
 shunt = 10**3 # 10-1000 mega
@@ -343,14 +343,14 @@ shunt = 10**3 # 10-1000 mega
 bandwidth = 370*10**3
 # bandwidth = 10**3
 
-mode = 'scenario'
+# mode = 'scenario'
 # mode = 'analysis'
 # mode = 'interactive_1to1'
 # mode = 'interactive_mulmul'
-mode = 'save'
+# mode = 'save'
 # mode = 'analysis_graph'
 # mode = 'config_interactive'
-# mode = 'effect_plot'
+mode = 'effect_plot'
 # mode = 'draw_config'
 scenario = 0
 config_num = 0
@@ -360,7 +360,7 @@ ma = 10
 if mode == 'draw_config':
 
     pd_num = 5
-    led_num =10
+    led_num =5
     config_num = 0
     led_alpha = np.deg2rad(50)
     pd_alpha = np.deg2rad(15)
@@ -1014,7 +1014,7 @@ elif mode =='interactive_mulmul':
 
 elif mode == 'save':
     testp_pos,testp_rot = set_scenario(scenario)
-    
+    count = 0
     # ans = np.zeros((14,14,5,5,5,5,2))
     numl = np.array([3,5,8,10,15])
     nump = np.array([3,5,8,10,15])
@@ -1391,175 +1391,7 @@ elif mode == 'config_interactive':
     for i in np.arange(2+2*led_num+2*pd_num):
         #samp.on_changed(update_slider)
         sliders[i].on_changed(sliders_on_changed)
-    plt.show()
-
-    # # initiate
-    # testp_pos = np.array([[0,1,1]]).T # 3x?
-    # #kpos = testp_pos.shape[1]
-    # testp_rot = np.array([[np.pi,0,0]]).T
-    # #krot = testp_rot.shape[1]
-    # pd_num = 3
-    # led_num = 3
-    # led_m = 5.3
-    # pd_m = 1
     
-    # pd_alpha = np.deg2rad(10)
-    # led_alpha = np.deg2rad(10)
-    
-    # led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
-
-
-    # axis_color = 'lightgoldenrodyellow'
-
-    # fig = plt.figure(figsize=(12, 8))
-    # ax = fig.add_subplot(121,projection='3d')
-    # ax.set_box_aspect(aspect = (1,1,1))
-    # ax.set_xlabel('x')
-    # ax.set_ylabel('y')
-    # ax.set_zlabel('z')
-    # ax.grid(True)
-    # ax.set_xlim3d(-1.5,1.5)
-    # ax.set_ylim3d(-1.5,1.5)
-    # ax.set_zlim3d(0,3)
-
-
-    # # Adjust the subplots region to leave some space for the sliders and buttons
-    # fig.subplots_adjust(left=0.25, bottom=0.25)
-
-
-    # # draw sphere
-    # u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
-    # x = 0.1*np.cos(u)*np.sin(v)
-    # y = 0.1*np.sin(u)*np.sin(v)
-    # z = 0.1*np.cos(v)
-    # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-    # ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-    # arrow = 0.5*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
-    # ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=[0.2,0.5], color='firebrick',label='PD座標系')
-    # arrow_rot = rotate_mat(testp_rot) @ arrow
-    # axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color='b',label='LED座標系')
-    # # plt.quiverkey(axis_item,0,0,1, label='LED座標系', labelpos='N', labelcolor='b')
-    # ax.quiver(0,0,0,0,0,0,color = 'k',label='計算出的相對位置')
-    # ax.quiver(0,0,0,0,0,0,color = 'magenta',label='誤差')
-    # ax.legend()
-
-
-    # solve_mulmul()
-    # pdu = pdu[0,0]
-    # ledu = ledu[0,0]
-    # error = error[0,0]
-    # dis = sol_dis_av[0,0]
-    # vec = ori_sol_pd_coor[0,0,:]
-
-    # #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
-    # if ledu==0|pdu==0:
-    #     ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
-    #     text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
-    #     error_vec =ax.quiver (0,0,0,1,1,1,alpha=0,color = 'magenta')
-    # else:
-    #     ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
-    #     text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
-    #     error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'magenta')
-    #     # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
-
-    #     #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
-    # #print(vec,dis)
-
-    # bandwidth_log = np.log10( bandwidth)
-    # background_log = np.log10(background)
-    # pd_saturate_log = np.log10(pd_saturate)
-    # # Add two sliders for tweaking the parameters
-    # text = [r'$^{PL}t_x$',r'$^{PL}t_y$',r'$^{PL}t_z$',\
-    #         r'$Roll ^{PL}rx$',r'$Pitch ^{PL}ry$',r'$Yaw ^{PL}rz$',\
-    #         r'LED數量$L$',r'PD數量$P$',r'LED朗博次方$M\ell$',r'PD朗博次方$Mp$',\
-    #         r'背景電流$Ib$(A)',r'頻寬$B$(Hz)',\
-    #         r'LED指向天頂角$^L\alpha$(deg)',r'PD指向天頂角$^P\alpha$(deg)',\
-    #         r'PD飽和電流$Ib$(A)']
-    # # print(len(text))
-    # init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num,led_m,pd_m,background,bandwidth_log,np.rad2deg(led_alpha),np.rad2deg(pd_alpha),pd_saturate_log))
-    # # print(init_val.shape)
-    # min_val = [-1.5,-1.5,0,0,0,\
-    #             0,3,3,2,2,\
-    #             -6,3,0,0,-6]
-    # max_val = [1.5,1.5,3,2*np.pi,2*np.pi,\
-    #             2*np.pi,20,20,70,70,\
-    #             -3,12,180,180,1]
-    # sliders = []
-    # for i in np.arange(len(min_val)):
-
-    #     axamp = plt.axes([0.74, 0.8-(i*0.05), 0.12, 0.02])
-    #     # Slider
-    #     # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
-    #     if 8>i >5:
-    #         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i],valstep=1)
-    #     else:
-    #         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
-    #     sliders.append(s)
-    # sliders[11].valtext.set_text(f'{bandwidth:.4E}')
-    # sliders[10].valtext.set_text(f'{background:.4E}')
-    # sliders[14].valtext.set_text(f'{pd_saturate:.4E}')
-    # # sliders[10].valtext.set_text(f'{shunt:.4E}')
-
-    # # Define an action for modifying the line when any slider's value changes
-    # def sliders_on_changed(val):
-
-    #     global  sphere,axis_item,ans,error_vec
-    #     ax.collections.remove(sphere)
-    #     ax.collections.remove(axis_item)
-    #     ax.collections.remove(ans)
-    #     ax.collections.remove(error_vec)
-    #     #ax.collections.remove(text_num)
-        
-    #     global testp_pos,testp_rot
-    #     testp_pos = np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T
-    #     testp_rot = np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T
-    #     arrow_rot = rotate_mat(np.array([sliders[3].val,sliders[4].val,sliders[5].val])) @ arrow
-    #     sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
-    #     axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color='b')
-        
-    #     global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,background,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car,pd_saturate
-    #     led_num = int(sliders[6].val)
-    #     pd_num = int(sliders[7].val)
-    #     led_m = sliders[8].val
-    #     pd_m = sliders[9].val
-    #     background_log = sliders[10].val
-    #     bandwidth_log = sliders[11].val
-    #     led_alpha = np.deg2rad(sliders[12].val)
-    #     pd_alpha = np.deg2rad(sliders[13].val)
-    #     pd_saturate_log = sliders[14].val
-    #     led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
-    #     background = 10**background_log
-    #     bandwidth = 10**bandwidth_log
-    #     pd_saturate = 10**pd_saturate_log
-        
-    #     solve_mulmul()
-        
-        
-    #     pdu = pdu[0,0]
-    #     ledu = ledu[0,0]
-    #     error = error[0,0]
-    #     dis = sol_dis_av[0,0]
-    #     vec = ori_sol_pd_coor[0,0,:]
-    
-    #     #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
-    #     if ledu==0  or pdu==0:
-    #         print(ledu,pdu)
-    #         print('right')
-    #         ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
-    #         text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError: -')
-    #         error_vec =ax.quiver (0,0,0,1,1,1,alpha=0)
-    #     else:
-    #         print(ledu,pdu)
-    #         print(ledu==0,pdu==0)
-    #         ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
-    #         text_item .set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
-    #         error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'magenta')
-    #         # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
-    #     sliders[11].valtext.set_text(f'{bandwidth:.4E}')
-    #     sliders[10].valtext.set_text(f'{background:.4E}')
-    #     sliders[14].valtext.set_text(f'{pd_saturate:.4E}')
-    #     fig.canvas.draw_idle()
 
     plt.show()
 
@@ -1575,64 +1407,66 @@ elif mode == 'effect_plot':
     count = 0
     mlist = [1,1.5,2,5,7]
     numlist = [3,5,8,10,15]
-    alphalist = np.deg2rad([10,20,30])#[5,10,15,20,30,40,50,60])
+    alphalist = np.deg2rad(np.array([5,10,15,20,30,40,50,60]))
     fig = [[],[],[]]
 
     # for m in range(len(mlist)):
 
-    # m=0
+    m=0
     alpha = 1
     fig = plt.figure(figsize=(8, 8))
     ax = fig.add_subplot(1,1,1,projection='3d')
 
-    # led_m = mlist[m]
-    # pd_m = mlist[m]
-    led_alpha = alphalist[alpha]
-    pd_alpha = alphalist[alpha]
+    led_m = mlist[m]
+    pd_m = mlist[m]
+    # led_alpha = alphalist[alpha]
+    # pd_alpha = alphalist[alpha]
 
-    # meshl,meshp = np.meshgrid( np.rad2deg(alphalist),np.rad2deg(alphalist))
-    meshl,meshp = np.meshgrid(mlist,mlist)
+    meshl,meshp = np.meshgrid( np.rad2deg(alphalist),np.rad2deg(alphalist))
+    # meshl,meshp = np.meshgrid(mlist,mlist)
 
-    # surface = np.zeros((len(numlist),len(alphalist),len(alphalist)))
-    surface =  np.zeros((len(numlist),len(mlist),len(mlist)))
+    surface = np.zeros((len(numlist),len(alphalist),len(alphalist)))
+    # surface =  np.zeros((len(numlist),len(mlist),len(mlist)))
 
     for num in range(len(numlist)):
         led_num = numlist[num]
         pd_num = numlist[num]
 
-        # for l in range(len(alphalist)):
-        for l in range(len(mlist)):
-            for p in range(len(mlist)):
-            # for p in range(len(alphalist)):
+        for l in range(len(alphalist)):
+        # for l in range(len(mlist)):
+            # for p in range(len(mlist)):
+            for p in range(len(alphalist)):
 
-                # led_alpha = alphalist[l]
-                # pd_alpha = alphalist[p]
-                led_m = mlist[l]
-                pd_m = mlist[p]
+                led_alpha = alphalist[l]
+                pd_alpha = alphalist[p]
+                # led_m = mlist[l]
+                # pd_m = mlist[p]
+
                 led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
                 solve_mulmul()  
 
                 count_sol = np.nansum(error<tolerance)
                 # print(alphalist[l],alphalist[p],count_sol)
+                
                 surface[num,l,p] = count_sol
                 count = count+1
                 print(count)
         
-        sur = ax.plot_surface(meshl, meshp, surface[num,:,:], label =  r'$L=P={{{:2d}}}$'.format(numlist[num]),alpha=0.7)
+        sur = ax.plot_surface(np.rad2deg(meshl), np.rad2deg(meshp), surface[num,:,:], label =  r'$L=P={{{:2d}}}$'.format(numlist[num]),alpha=0.7)
         sur._facecolors2d = sur._facecolor3d
         sur._edgecolors2d = sur._edgecolor3d
         
-    # np.save(f'./surface m{mlist[m]}.npy',surface)
-    np.save(f'./surface alpha{alphalist[alpha]}.npy',surface)
+    np.save(f'./surface m{mlist[m]}.npy',surface)
+    # np.save(f'./surface alpha{alphalist[alpha]}.npy',surface)
 
 
     ax.legend()
-    fig.suptitle(r'朗博次方($Mp,M\ell$)對系統成效的影響（$^L\alpha = ^P\alpha = {{{:.2f}}}(deg)$）'.format(alphalist[alpha]))
-    ax.set_xlabel(r'$M\ell$')
-    ax.set_ylabel(r'$Mp$')
-    # fig.suptitle(r'硬體天頂角($^P \alpha$,$^L\alpha$)對系統成效的影響（$Mp=M\ell={{{:2d}}}$）'.format(mlist[m]))
-    # ax.set_xlabel(r'$^L\alpha$(deg)')
-    # ax.set_ylabel(r'$^P\alpha$(deg)')
+    # fig.suptitle(r'朗博次方($Mp,M\ell$)對系統成效的影響（$^L\alpha = ^P\alpha = {{{:.2f}}}(deg)$）'.format(np.rad2deg(alphalist[alpha])))
+    # ax.set_xlabel(r'$M\ell$')
+    # ax.set_ylabel(r'$Mp$')
+    fig.suptitle(r'硬體天頂角($^P \alpha$,$^L\alpha$)對系統成效的影響（$Mp=M\ell={{{:2d}}}$）'.format(mlist[m]))
+    ax.set_xlabel(r'$^L\alpha$(deg)')
+    ax.set_ylabel(r'$^P\alpha$(deg)')
     ax.set_zlabel('於容許範圍內的樣本點數量')
     
     
