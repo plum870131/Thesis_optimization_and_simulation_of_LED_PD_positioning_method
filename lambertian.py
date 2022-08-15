@@ -283,6 +283,8 @@ m = np.stack((A.reshape((-1)),B.reshape((-1)),c.reshape((-1))))
 a,b,c = rotate_mat((np.array([0,n_ang[0,0],n_ang[1,0]]))) @ m
 ax.plot_surface(a.reshape(21,21),b.reshape(21,21),c.reshape(21,21), color="b",alpha=0.2)
 
+
+plt.show()
 # =============================================================================
 # axis_color = 'lightgoldenrodyellow'
 # 

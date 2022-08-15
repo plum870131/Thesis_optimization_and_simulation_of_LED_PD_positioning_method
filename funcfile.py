@@ -411,7 +411,7 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
     led_data_ref = np.sort(led_data_ref,axis=3)[:,:,:,0].reshape(kpos,krot,led_num,1)
     led_data_other = light_led.copy()
     led_data_other.mask = (light_led.mask | maskled)
-
+    
     # led_data_ref = light_led[maskled].reshape(kpos,krot,-1,1)#kp kr ledu 1
     #led_data_other = light_led[~maskled].reshape(ledu,-1)# ledu other
     pd_data_ref = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
@@ -427,6 +427,7 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
     # ref/other
     #ratio_led = np.power(np.ma.divide(led_data_ref, led_data_other),1/pd_m) #led_u x other
     ratio_led = np.power(np.divide(led_data_ref, led_data_other),1/pd_m)
+    # print(ratio_led,'ratio')
     ratio_pd = np.power(np.divide(pd_data_ref, pd_data_other),1/led_m) #other, pdu
     # in_ang  krot,kpos,led_num,pd_num
     
@@ -437,8 +438,13 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
     # =============================================================================
     #kpos x krot x ledu x other x 3
     conf_led = np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1))
-    conf_led_ref = np.sort( (np.ma.masked_array(conf_led,np.tile((light_pd.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
+    # print(conf_led,'conf')
+    conf_led_ref = np.sort( (np.ma.masked_array(conf_led,np.tile((light_led.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
+    
+    # print((np.ma.masked_array(conf_led,np.tile((light_pd.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),'here')
+    # print(conf_led_ref,'conf')
     conf_led_other = np.ma.masked_array(conf_led,np.tile(led_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
+    # print(conf_led_other,'other')
     nor_led = conf_led_ref - np.multiply(ratio_led.reshape(kpos,krot,led_num,-1,1),conf_led_other)
 
     # kp kr l p 3
@@ -449,6 +455,8 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
     conf_pd_other = np.ma.masked_array(conf_pd,np.tile(pd_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
     # kp kr l p
     nor_pd = conf_pd_ref - np.multiply(ratio_pd.reshape(kpos,krot,led_num,-1,1),conf_pd_other)
+    # print(conf_pd_ref,'conf')
+    # print(conf_pd_other,'conf')
     return nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other
 
 
