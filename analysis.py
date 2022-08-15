@@ -1,24 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jul 18 23:56:27 2022
 
-@author: tiffany
-"""
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Sat May 28 05:27:56 2022
-
-@author: tiffany
-"""
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri May 20 10:43:08 2022
-
-@author: tiffany
-"""
 from funcfile import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -227,14 +209,9 @@ def solve_mulmul():
     global error
     error = (np.sum(np.square(np.multiply(ori_sol_pd_coor,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
 
-    # print('unsolve:',unsolve,', solve:',solve,', success:',success)
-    # print(np.average(sol_dis_av))
-    
-    # return glob_led_pos,glob_led_ori,error ,unsolve,success,error_av
-
 def set_hardware(led_hard,pd_hard):
     led_list = [\
-                1.7*np.pi,80*10**(-3)
+                1.7*np.pi, 80*10**(-3), 1.35
                 ]
     # respon area NEP darkcurrent shunt
     pd_list = [\
@@ -330,22 +307,24 @@ background = 740*10**(-6)
 pd_saturate = 10#np.inf
 
 
-bandwidth = 9.7**13/10 # 320-1000nm
-bandwidth = 370*10**3
+# bandwidth = 9.7**13/10 # 320-1000nm
+bandwidth = 370*10**3 #from cite
 # shunt = 1000*10**6 # 10-1000 mega
 
 # mode = 'scenario'
 # mode = 'analysis'
 # mode = 'interactive_1to1'
 # mode = 'interactive_mulmul'
-mode = 'save'
+# mode = 'save'
+# mode = 'analysis_graph'
+mode = 'config_interactive'
 scenario = 0
 config_num = 0
+rot_max = 60
 
 
 
-
-if mode =='scenario':
+if   mode =='scenario':
     testp_pos,testp_rot = set_scenario(scenario)
     # testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
     # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
@@ -405,6 +384,7 @@ if mode =='scenario':
     ax.yaxis.set_ticklabels([])
     ax.zaxis.set_ticklabels([])
     ax.set_axis_off()
+    
 
     # ax.scatter(0,0,0,color='k',marker='x')
 
@@ -423,14 +403,16 @@ if mode =='scenario':
 
     a,b,c1 = ori_ang2cart(testp_rot[1:,:])
 
-    ax.quiver(0,0,0,0,0,-1,color='r')
-    ax.quiver(0,0,0,a,b,c1,color = 'b')
+    ax.quiver(0,0,0,0,0,-1,color='r',label= 'PD座標系Z軸')
+    ax.quiver(0,0,0,a,b,c1,color = 'b',label= 'LED座標系Z軸')
+    ax.legend()
+    plt.show()
 
-
-elif mode=='analysis':
-    pd_num = 8
-    led_num = 8
-    led_m = 1
+elif mode == 'analysis':
+    # print('hi')
+    pd_num = 3
+    led_num = 3
+    led_m = 5.3
     pd_m = 1
     
     # ans = np.zeros((14,14,5,5,5,5,2))
@@ -512,7 +494,7 @@ elif mode=='analysis':
     
     
     ax.grid(True)
-    
+    plt.show()
 
 elif mode =='interactive_1to1':
 
@@ -521,10 +503,10 @@ elif mode =='interactive_1to1':
     #kpos = testp_pos.shape[1]
     testp_rot = np.array([[np.pi,0,0]]).T
     #krot = testp_rot.shape[1]
-    pd_num = 7
-    led_num = 7
-    led_m = 3
-    pd_m = 3
+    pd_num = 3
+    led_num = 3
+    led_m = 5.3
+    pd_m = 1
     
     pd_alpha = np.deg2rad(10)
     led_alpha = np.deg2rad(10)
@@ -559,9 +541,13 @@ elif mode =='interactive_1to1':
     ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
 
     arrow = 0.5*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
-    ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=[0.2,0.5], color='b')
+    ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=[0.2,0.5], color='firebrick',label='PD座標系')
     arrow_rot = rotate_mat(testp_rot) @ arrow
-    axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color='b')
+    axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color='b',label='LED座標系')
+    # plt.quiverkey(axis_item,0,0,1, label='LED座標系', labelpos='N', labelcolor='b')
+    ax.quiver(0,0,0,0,0,0,color = 'k',label='計算出的相對位置')
+    ax.quiver(0,0,0,0,0,0,color = 'magenta',label='誤差')
+    ax.legend()
 
 
     solve_mulmul()
@@ -575,21 +561,35 @@ elif mode =='interactive_1to1':
     if ledu==0|pdu==0:
         ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
         text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
-        error_vec =ax.quiver (0,0,0,1,1,1,alpha=0)
+        error_vec =ax.quiver (0,0,0,1,1,1,alpha=0,color = 'magenta')
     else:
         ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
         text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
-        error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'r')
+        error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'magenta')
         # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
 
         #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
     #print(vec,dis)
 
+    bandwidth_log = np.log10( bandwidth)
+    background_log = np.log10(background)
+    pd_saturate_log = np.log10(pd_saturate)
     # Add two sliders for tweaking the parameters
-    text = ['x','y','z','roll','pitch','yaw','led amount','pd amount','led m','pd m','shunt(Ohm)','bandwidth(Hz)','led_alpha(rad)','pd_alpha(rad)']
-    init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num,led_m,pd_m,shunt,bandwidth,led_alpha,pd_alpha))
-    min_val = [-1.5,-1.5,0,0,0,0,3,3,2,2,10**6,10**3,0,0]
-    max_val = [1.5,1.5,3,2*np.pi,2*np.pi,2*np.pi,20,20,70,70,10**9,10**12,np.pi,np.pi]
+    text = [r'$^{PL}t_x$',r'$^{PL}t_y$',r'$^{PL}t_z$',\
+            r'$Roll ^{PL}rx$',r'$Pitch ^{PL}ry$',r'$Yaw ^{PL}rz$',\
+            r'LED數量$L$',r'PD數量$P$',r'LED朗博次方$M\ell$',r'PD朗博次方$Mp$',\
+            r'背景電流$Ib$(A)',r'頻寬$B$(Hz)',\
+            r'LED指向天頂角$^L\alpha$(deg)',r'PD指向天頂角$^P\alpha$(deg)',\
+            r'PD飽和電流$Ib$(A)']
+    # print(len(text))
+    init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num,led_m,pd_m,background,bandwidth_log,np.rad2deg(led_alpha),np.rad2deg(pd_alpha),pd_saturate_log))
+    # print(init_val.shape)
+    min_val = [-1.5,-1.5,0,0,0,\
+                0,3,3,2,2,\
+                -6,3,0,0,-6]
+    max_val = [1.5,1.5,3,2*np.pi,2*np.pi,\
+                2*np.pi,20,20,70,70,\
+                -3,12,180,180,1]
     sliders = []
     for i in np.arange(len(min_val)):
 
@@ -601,7 +601,10 @@ elif mode =='interactive_1to1':
         else:
             s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
         sliders.append(s)
-
+    sliders[11].valtext.set_text(f'{bandwidth:.4E}')
+    sliders[10].valtext.set_text(f'{background:.4E}')
+    sliders[14].valtext.set_text(f'{pd_saturate:.4E}')
+    # sliders[10].valtext.set_text(f'{shunt:.4E}')
 
     # Define an action for modifying the line when any slider's value changes
     def sliders_on_changed(val):
@@ -620,17 +623,20 @@ elif mode =='interactive_1to1':
         sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
         axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color='b')
         
-        global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,shunt,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
+        global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,background,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car,pd_saturate
         led_num = int(sliders[6].val)
         pd_num = int(sliders[7].val)
         led_m = sliders[8].val
         pd_m = sliders[9].val
-        shunt = sliders[10].val
-        bandwidth = sliders[11].val
-        led_alpha = sliders[12].val
-        pd_alpha = sliders[13].val
+        background_log = sliders[10].val
+        bandwidth_log = sliders[11].val
+        led_alpha = np.deg2rad(sliders[12].val)
+        pd_alpha = np.deg2rad(sliders[13].val)
+        pd_saturate_log = sliders[14].val
         led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
-
+        background = 10**background_log
+        bandwidth = 10**bandwidth_log
+        pd_saturate = 10**pd_saturate_log
         
         solve_mulmul()
         
@@ -642,22 +648,32 @@ elif mode =='interactive_1to1':
         vec = ori_sol_pd_coor[0,0,:]
     
         #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
-        if ledu==0|pdu==0:
+        if ledu==0  or pdu==0:
+            print(ledu,pdu)
+            print('right')
             ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
-            text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
+            text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError: -')
             error_vec =ax.quiver (0,0,0,1,1,1,alpha=0)
         else:
+            print(ledu,pdu)
+            print(ledu==0,pdu==0)
             ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
             text_item .set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
-            error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'r')
+            error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'magenta')
             # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
-
+        sliders[11].valtext.set_text(f'{bandwidth:.4E}')
+        sliders[10].valtext.set_text(f'{background:.4E}')
+        sliders[14].valtext.set_text(f'{pd_saturate:.4E}')
         fig.canvas.draw_idle()
+
+    plt.show()
 
 
     for i in np.arange(len(min_val)):
         #samp.on_changed(update_slider)
         sliders[i].on_changed(sliders_on_changed)
+
+    plt.show()
 
 elif mode =='interactive_mulmul':
 
@@ -666,11 +682,14 @@ elif mode =='interactive_mulmul':
     kpos = testp_pos.shape[1]
     # testp_rot = np.array([[np.pi,0,0]]).T
     krot = testp_rot.shape[1]
-    
+    effective = 60 
+
+
+
     pd_num = 3
     led_num = 3
-    led_m = 3
-    pd_m = 3
+    led_m = 5.3
+    pd_m = 1
     
     pd_alpha = np.deg2rad(10)
     led_alpha = np.deg2rad(10)
@@ -683,11 +702,11 @@ elif mode =='interactive_mulmul':
     effective_pos = count_kpos/krot >=effective/100
     effective_rot = count_krot/kpos >=effective/100
 
-    fig = plt.figure(figsize=(12, 8))
+    fig = plt.figure(figsize=(15, 8))
     colormap= plt.cm.get_cmap('YlOrRd')
     normalizep =  colors.Normalize(vmin=0, vmax=krot)
     normalizer =  colors.Normalize(vmin=0, vmax=kpos)
-    fig.subplots_adjust(wspace=0.3)
+    fig.subplots_adjust(wspace=0.3,hspace=0.3)
     
     ax1 = fig.add_subplot(2,3,1,projection='3d')
     ax1.set_box_aspect(aspect = (1,1,1))
@@ -716,12 +735,13 @@ elif mode =='interactive_mulmul':
     
     ax2 = fig.add_subplot(2,3,4,projection='polar')
     
-    sc2 = ax2.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
+    sc2 = ax2.scatter(np.rad2deg(testp_rot[2,:]),np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
     colorbar = fig.colorbar(sc2,shrink=0.3,pad=0.15)
     colorbar.ax.set_ylabel('容許範圍內的樣本點數量')
     ax2.set_title('旋轉樣本點')
     ax2.text(1,1,'pitch(degree)',rotation = 15)
     ax2.text(np.deg2rad(60),80,'yaw(degree)')
+    ax2.set_ylim([0,rot_max])
     # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     # fig.colorbar(sc, cax=cbar_ax)
     
@@ -750,11 +770,12 @@ elif mode =='interactive_mulmul':
     
     ax4 = fig.add_subplot(2,3,5,projection='polar')
     
-    sc4 = ax4.scatter(testp_rot[2,effective_rot],np.rad2deg(testp_rot[1,effective_rot])  ,color = 'b')
+    sc4 = ax4.scatter(np.rad2deg(testp_rot[2,effective_rot]),np.rad2deg(testp_rot[1,effective_rot])  ,color = 'b')
 
     ax4.set_title('旋轉樣本有效範圍')
-    ax4.text(1,1,'pitch(degree)',rotation = 15)
+    ax4.text(0,0,'pitch(degree)',rotation = 15)
     ax4.text(np.deg2rad(60),80,'yaw(degree)')
+    ax4.set_ylim([0,rot_max])
     # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     # fig.colorbar(sc, cax=cbar_ax)
     
@@ -764,14 +785,22 @@ elif mode =='interactive_mulmul':
     #print(vec,dis)
 
     # Add two sliders for tweaking the parameters
-    text = ['tolerance(m)','effective(%)','led amount','pd amount','led m','pd m','shunt(Ohm)','bandwidth(Hz)','led_alpha(rad)','pd_alpha(rad)','pd_saturate']
-    init_val = np.array((tolerance,effective,led_num,pd_num,led_m,pd_m,shunt,bandwidth,led_alpha,pd_alpha,pd_saturate))
-    min_val = [0,0,3,3,2,2,10**6,10**3,0,0,10*(-3)]
-    max_val = [1,100,20,20,70,70,10**9,10**12,np.pi,np.pi,10]
+    bandwidth_log = np.log10( bandwidth)
+    background_log = np.log10(background)
+    pd_saturate_log = np.log10(pd_saturate)
+    # Add two sliders for tweaking the parameters
+    text = [r'容許範圍$To$(m)',r'有效比例(%)',r'LED數量$L$',r'PD數量$P$',\
+            r'LED朗博次方$M\ell$',r'PD朗博次方$Mp$',\
+            r'背景電流$Ib$(A)',r'頻寬$B$(Hz)',\
+            r'LED指向天頂角$^L\alpha$(deg)',r'PD指向天頂角$^P\alpha$(deg)',\
+            r'PD飽和電流$Ib$(A)']
+    init_val = np.array((tolerance,effective,led_num,pd_num,led_m,pd_m,background_log,bandwidth_log,np.rad2deg(led_alpha),np.rad2deg(pd_alpha),pd_saturate_log))
+    min_val = [0,0,3,3,2,2,-3,3,0,0,(-6)]
+    max_val = [1,100,20,20,10,10,-6,12,180,180,1]
     sliders = []
     for i in np.arange(len(min_val)):
 
-        axamp = plt.axes([0.74, 0.8-(i*0.05), 0.12, 0.02])
+        axamp = plt.axes([0.76, 0.8-(i*0.05), 0.12, 0.02])
         # Slider
         # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
         if 4>i >1:
@@ -779,6 +808,10 @@ elif mode =='interactive_mulmul':
         else:
             s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
         sliders.append(s)
+
+    sliders[7].valtext.set_text(f'{bandwidth:.4E}')
+    sliders[6].valtext.set_text(f'{background:.4E}')
+    sliders[10].valtext.set_text(f'{pd_saturate:.4E}')
 
 
     # Define an action for modifying the line when any slider's value changes
@@ -791,22 +824,23 @@ elif mode =='interactive_mulmul':
         ax4.collections.remove(sc4)
         
         global tolerance,effective,pd_saturate
-        global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,shunt,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
+        global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,background,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
         tolerance = sliders[0].val
         effective = sliders[1].val
         led_num = int(sliders[2].val)
         pd_num = int(sliders[3].val)
         led_m = sliders[4].val
         pd_m = sliders[5].val
-        shunt = sliders[6].val
-        bandwidth = sliders[7].val
-        led_alpha = sliders[8].val
-        pd_alpha = sliders[9].val
-        pd_saturate = sliders[10].val
+        background_log = sliders[6].val
+        bandwidth_log = sliders[7].val
+        led_alpha = np.deg2rad(sliders[8].val)
+        pd_alpha = np.deg2rad(sliders[9].val)
+        pd_saturate_log = sliders[10].val
         led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
-
+        background = 10**background_log
+        bandwidth_log = 10**bandwidth_log
+        pd_saturate = 10**pd_saturate_log
         
-        solve_mulmul()
         solve_mulmul()
         count_kpos = np.nansum(error<tolerance,axis=1)
         count_krot = np.nansum(error<tolerance,axis=0)
@@ -818,15 +852,19 @@ elif mode =='interactive_mulmul':
         sc3 = ax3.scatter(testp_pos[0,effective_pos],testp_pos[1,effective_pos],testp_pos[2,effective_pos],color = 'b',alpha=0.5)
         sc4 = ax4.scatter(testp_rot[2,effective_rot],np.rad2deg(testp_rot[1,effective_rot])  ,color = 'b')
 
-    
+        sliders[7].valtext.set_text(f'{bandwidth:.4E}')
+        sliders[6].valtext.set_text(f'{background:.4E}')
+        sliders[10].valtext.set_text(f'{pd_saturate:.4E}')  
         #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
         
         fig.canvas.draw_idle()
+        plt.show()
 
 
     for i in np.arange(len(min_val)):
         #samp.on_changed(update_slider)
         sliders[i].on_changed(sliders_on_changed)
+    plt.show()
 
 elif mode=='save':
     testp_pos,testp_rot = set_scenario(scenario)
@@ -856,349 +894,382 @@ elif mode=='save':
     
     
     
-# ans = np.zeros((18,18,2))
-# fig1 = plt.figure(figsize=(15, 15))
-# fig2 = plt.figure(figsize=(15, 15))
-# cm = plt.cm.get_cmap('rainbow')
+    ax2 = fig.add_subplot(2,4,5,projection='polar')
+    
+    sc2 = ax2.scatter(np.rad2deg(testp_rot[2,:]),np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
+    colorbar = fig.colorbar(sc2,shrink=0.3,pad=0.15)
+    colorbar.ax.set_ylabel('容許範圍內的樣本點數量')
+    ax2.set_title('旋轉樣本點')
+    ax2.text(1,1,'pitch(degree)',rotation = 15)
+    ax2.text(np.deg2rad(60),80,'yaw(degree)')
+    ax2.set_ylim([0,rot_max])
+    # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    # fig.colorbar(sc, cax=cbar_ax)
+    
+    ax3 = fig.add_subplot(2,4,2,projection='3d')
+    ax3.set_box_aspect(aspect = (1,1,1))
+    ax3.set_xlabel('x')
+    ax3.set_ylabel('y')
+    ax3.set_zlabel('z')
+    ax3.grid(True)
+    if scenario ==2:
+        ax3.set_xlim3d(-3,3)
+        ax3.set_ylim3d(-3,3)
+        ax3.set_zlim3d(-3,3)
+    else:
+        ax3.set_xlim3d(-1.5,1.5)
+        ax3.set_ylim3d(-1.5,1.5)
+        ax3.set_zlim3d(0,3)
+    
+    sc3 = ax3.scatter(testp_pos[0,effective_pos],testp_pos[1,effective_pos],testp_pos[2,effective_pos],color = 'b',alpha=0.5)
+    ax3.scatter(0,0,0,color='k',marker='x')
 
-# for numli in range(numl.size):
-#     for numpi in range(nump.size):
+    ax3.set_title('平移樣本有效範圍\n')
+    
+    
+    
+    
+    ax4 = fig.add_subplot(2,4,6,projection='polar')
+    
+    sc4 = ax4.scatter(np.rad2deg(testp_rot[2,effective_rot]),np.rad2deg(testp_rot[1,effective_rot])  ,color = 'b')
+
+    ax4.set_title('旋轉樣本有效範圍')
+    ax4.text(0,0,'pitch(degree)',rotation = 15)
+    ax4.text(np.deg2rad(60),80,'yaw(degree)')
+    ax4.set_ylim([0,rot_max])
+    # cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    # fig.colorbar(sc, cax=cbar_ax)
+    
+    ax5 = fig.add_subplot(2,4,3,projection='3d')
+    ax5.xaxis.set_ticklabels([])
+    ax5.yaxis.set_ticklabels([])
+    ax5.zaxis.set_ticklabels([])
+    ax5.set_axis_off()
+    ax5.set_box_aspect(aspect = (1,1,1))
+    ax5.title.set_text('LED Configuration')
+    ax5.set_xlim3d(-1,1)
+    ax5.set_ylim3d(-1,1)
+    ax5.set_zlim3d(-1,1)
+
+    u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+    x = 1*np.cos(u)*np.sin(v)
+    y = 1*np.sin(u)*np.sin(v)
+    z = 1*np.cos(v)
+    ax5.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+    zero = np.zeros((led_num,))
+    sc5 = ax5.quiver(zero,zero,zero,led_ori_car[0,:],led_ori_car[1,:],led_ori_car[2,:])
+
+    ax6 = fig.add_subplot(2,4,7,projection='3d')
+    ax6.xaxis.set_ticklabels([])
+    ax6.yaxis.set_ticklabels([])
+    ax6.zaxis.set_ticklabels([])
+    ax6.set_axis_off()
+    ax6.set_box_aspect(aspect = (1,1,1))
+    ax6.title.set_text('PD Configuration')
+    ax6.set_xlim3d(-1,1)
+    ax6.set_ylim3d(-1,1)
+    ax6.set_zlim3d(-1,1)
+
+    ax6.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+    zero = np.zeros((pd_num,))
+    sc6 = ax6.quiver(zero,zero,zero,pd_ori_car[0,:],pd_ori_car[1,:],pd_ori_car[2,:])
+    #
+        #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
+    #print(vec,dis)
+
+    # Add two sliders for tweaking the parameters
+    # bandwidth_log = np.log10( bandwidth)
+    # background_log = np.log10(background)
+    # pd_saturate_log = np.log10(pd_saturate)
+    # Add two sliders for tweaking the parameters
+    # text = [r'容許範圍$To$(m)',r'有效比例(%)',r'LED數量$L$',r'PD數量$P$',\
+    #         r'LED朗博次方$M\ell$',r'PD朗博次方$Mp$',\
+    #         r'背景電流$Ib$(A)',r'頻寬$B$(Hz)',\
+    #         r'LED指向天頂角$^L\alpha$(deg)',r'PD指向天頂角$^P\alpha$(deg)',\
+    #         r'PD飽和電流$Ib$(A)']
+    # init_val = np.array((tolerance,effective,led_num,pd_num,led_m,pd_m,background_log,bandwidth_log,np.rad2deg(led_alpha),np.rad2deg(pd_alpha),pd_saturate_log))
+    # min_val = [0,0,3,3,2,2,-3,3,0,0,(-6)]
+    # max_val = [1,100,20,20,10,10,-6,12,180,180,1]
+    sliders = []
+    text = [r'LED朗博次方$M\ell$',r'PD朗博次方$Mp$']
+    init_val = [led_m,pd_m]
+    min_val = [1,10]
+    max_val = [1,10]
+    print(init_val)
+    # for i in range(2):
+    axamp = plt.axes([0.75, 0.9-(0*0.05), 0.1, 0.02])
+    s = Slider(axamp, r'LED朗博次方$M\ell$', 1, 10, valinit=led_m)
+    sliders.append(s)
+    axamp = plt.axes([0.75, 0.9-(1*0.05), 0.1, 0.02])
+    s = Slider(axamp, r'OD朗博次方$Mp$', 1, 10, valinit=pd_m)
+    sliders.append(s)
+
+    for i in range((led_num)):
+        axamp1 = plt.axes([0.7, 0.8-(i*0.05), 0.1, 0.02])
+        axamp2 = plt.axes([0.86, 0.8-(i*0.05), 0.1, 0.02])
+        s = Slider(axamp1, r'$^L\alpha_{{{:2d}}}$'.format(i+1), 0, 180, valinit =np.rad2deg(led_ori_ang[0,i]))
+        sliders.append(s)
+        s = Slider(axamp2, r'$^L\beta_{{{:2d}}}$'.format(i+1), 0, 360,valinit = np.rad2deg(led_ori_ang[1,i]))
+        sliders.append(s)
+        #text.append((r'$^L\alpha_{{{:2d}}}$'.format(i+1)),(r'$^L\beta_{{{:2d}}}$'.format(i+1)))
+    for i in range((pd_num)):
+        axamp1 = plt.axes([0.7, 0.8-((i+led_num+1)*0.05), 0.1, 0.02])
+        axamp2 = plt.axes([0.86, 0.8-((i+led_num+1)*0.05), 0.1, 0.02])
+        s = Slider(axamp1, r'$^P\alpha_{{{:2d}}}$'.format(i+1), 0, 180, valinit = np.rad2deg(pd_ori_ang[0,i]))
+        sliders.append(s)
+        s = Slider(axamp2, r'$^P\beta_{{{:2d}}}$'.format(i+1), 0, 360,valinit = np.rad2deg(pd_ori_ang[1,i]))
+        sliders.append(s)
+        #text.append((r'$^L\alpha_{{{:2d}}}$'.format(i+1)),(r'$^L\beta_{{{:2d}}}$'.format(i+1)))
+    print(len(sliders))
+    # for i in np.arange(len(min_val)):
+
+    #     axamp = plt.axes([0.76, 0.8-(i*0.05), 0.12, 0.02])
+    #     # Slider
+    #     # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
+    #     if 4>i >1:
+    #         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i],valstep=1)
+    #     else:
+    #         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
+    #     sliders.append(s)
+
+    # sliders[7].valtext.set_text(f'{bandwidth:.4E}')
+    # sliders[6].valtext.set_text(f'{background:.4E}')
+    # sliders[10].valtext.set_text(f'{pd_saturate:.4E}')
+
+
+    # Define an action for modifying the line when any slider's value changes
+    def sliders_on_changed(val):
+
+        global  sc1,sc2,sc3,sc4,sc5,sc6,ax1,ax2,ax3,ax4,ax5,ax6,fig
+        ax1.collections.remove(sc1)
+        ax2.collections.remove(sc2)
+        ax3.collections.remove(sc3)
+        ax4.collections.remove(sc4)
+        ax5.collections.remove(sc5)
+        ax6.collections.remove(sc6)
         
-#         # pd_alpha = alphap[alphapi]
-#         # led_alpha = alphal[alphali]
-#         # pd_num = nump[numpi]
-#         # led_num = numl[numli]
-#         led_num = numl[numli]
-#         pd_num = nump[numpi]
-        
-#         pd_beta = np.deg2rad(360/pd_num)#方位角
-#         pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-#         pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
+        global led_m,pd_m,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
+        # global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,background,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
+        led_m = sliders[0].val
+        pd_m = sliders[1].val
+        # tolerance = sliders[0].val
+        # effective = sliders[1].val
 
-#         led_beta = np.deg2rad(360/led_num)#方位角
-#         led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-#         led_ori_car = ori_ang2cart(led_ori_ang) #3xled
-        
-#         solve_mulmul()
-#         count_kpos = np.sum((error<tolerance),axis=1)/testp_rot.shape[1]
-#         count_krot = np.sum((error<tolerance),axis=0)/testp_pos.shape[1]
-        
-        
-#         ans[numli,numpi,0] = success
-#         ans[numli,numpi,1] = error_av
-        
-#         # cm = plt.cm.get_cmap('rainbow')
+        led_ori_ang = np.zeros((2,led_num))
+        pd_ori_ang = np.zeros((2,pd_num))
+        for i in range(led_num):
+            led_ori_ang[0,i] = np.deg2rad(sliders[2+2*i].val)
+            led_ori_ang[1,i] = np.deg2rad(sliders[2+1+2*i].val)
+        for i in range(pd_num):
+            pd_ori_ang[0,i] = np.deg2rad(sliders[2 + 2*led_num + 2*i].val)
+            pd_ori_ang[1,i] = np.deg2rad(sliders[2 + 2*led_num + 1 + 2*i].val)
 
-#         # ax = fig1.add_subplot(5,5,1+mli*5+mpi,projection='3d')
-#         # ax.set_box_aspect(aspect = (1,1,1))
-#         # ax.set_xlabel('x')
-#         # ax.set_ylabel('y')
-#         # ax.set_zlabel('z')
-#         # ax.grid(True)
-#         # ax.set_xlim3d(-1.5,1.5)
-#         # ax.set_ylim3d(-1.5,1.5)
-#         # ax.set_zlim3d(0,1.5)
-
-#         # sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap='rainbow')
-#         # ax.scatter(0,0,0,color='k',marker='x')
-
-#         # fig1.colorbar(sc,shrink=0.3,pad=0.1)
-
-#         # ax = fig2.add_subplot(5,5,1+mli*5+mpi,projection='polar')
-#         # # ax.axis('equal')
         
-#         # sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap='rainbow')
+        led_ori_car = ori_ang2cart(led_ori_ang)
+        pd_ori_car = ori_ang2cart(pd_ori_ang)
+
+        solve_mulmul()
+        count_total = np.nansum(error<tolerance)
+        count_kpos = np.nansum(error<tolerance,axis=1)
+        count_krot = np.nansum(error<tolerance,axis=0)
+        effective_pos = count_kpos/krot >=effective/100
+        effective_rot = count_krot/kpos >=effective/100
+        fig.suptitle(count_total)
         
         
-#         # fig2.colorbar(sc,shrink=0.3,pad=0.1)
+        sc1 = ax1.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalizep,alpha=0.5)
+        sc2 = ax2.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
+        sc3 = ax3.scatter(testp_pos[0,effective_pos],testp_pos[1,effective_pos],testp_pos[2,effective_pos],color = 'b',alpha=0.5)
+        sc4 = ax4.scatter(testp_rot[2,effective_rot],np.rad2deg(testp_rot[1,effective_rot])  ,color = 'b')
+        sc5 = ax5.quiver(np.zeros((led_num,)),np.zeros((led_num,)),np.zeros((led_num,)),pd_ori_car[0,:],pd_ori_car[1,:],pd_ori_car[2,:])
+        sc6 = ax6.quiver(np.zeros((pd_num,)),np.zeros((pd_num,)),np.zeros((pd_num,)),pd_ori_car[0,:],pd_ori_car[1,:],pd_ori_car[2,:])
+        # sliders[7].valtext.set_text(f'{bandwidth:.4E}')
+        # sliders[6].valtext.set_text(f'{background:.4E}')
+        # sliders[10].valtext.set_text(f'{pd_saturate:.4E}')  
+        #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
         
-#         # ax.grid(True)
+        fig.canvas.draw_idle()
+        # plt.show()
+
+
+    for i in np.arange(2+2*led_num+2*pd_num):
+        #samp.on_changed(update_slider)
+        sliders[i].on_changed(sliders_on_changed)
+    plt.show()
+
+    # # initiate
+    # testp_pos = np.array([[0,1,1]]).T # 3x?
+    # #kpos = testp_pos.shape[1]
+    # testp_rot = np.array([[np.pi,0,0]]).T
+    # #krot = testp_rot.shape[1]
+    # pd_num = 3
+    # led_num = 3
+    # led_m = 5.3
+    # pd_m = 1
+    
+    # pd_alpha = np.deg2rad(10)
+    # led_alpha = np.deg2rad(10)
+    
+    # led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
+
+
+    # axis_color = 'lightgoldenrodyellow'
+
+    # fig = plt.figure(figsize=(12, 8))
+    # ax = fig.add_subplot(121,projection='3d')
+    # ax.set_box_aspect(aspect = (1,1,1))
+    # ax.set_xlabel('x')
+    # ax.set_ylabel('y')
+    # ax.set_zlabel('z')
+    # ax.grid(True)
+    # ax.set_xlim3d(-1.5,1.5)
+    # ax.set_ylim3d(-1.5,1.5)
+    # ax.set_zlim3d(0,3)
+
+
+    # # Adjust the subplots region to leave some space for the sliders and buttons
+    # fig.subplots_adjust(left=0.25, bottom=0.25)
+
+
+    # # draw sphere
+    # u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+    # x = 0.1*np.cos(u)*np.sin(v)
+    # y = 0.1*np.sin(u)*np.sin(v)
+    # z = 0.1*np.cos(v)
+    # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
+    # ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+    # arrow = 0.5*np.array([[1,0,0],[0,1,0],[0,0,1]]).T
+    # ax.quiver(np.array([0,0,0]),np.array([0,0,0]),np.array([0,0,0]),arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=[0.2,0.5], color='firebrick',label='PD座標系')
+    # arrow_rot = rotate_mat(testp_rot) @ arrow
+    # axis_item = ax.quiver(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=0.1, color='b',label='LED座標系')
+    # # plt.quiverkey(axis_item,0,0,1, label='LED座標系', labelpos='N', labelcolor='b')
+    # ax.quiver(0,0,0,0,0,0,color = 'k',label='計算出的相對位置')
+    # ax.quiver(0,0,0,0,0,0,color = 'magenta',label='誤差')
+    # ax.legend()
+
+
+    # solve_mulmul()
+    # pdu = pdu[0,0]
+    # ledu = ledu[0,0]
+    # error = error[0,0]
+    # dis = sol_dis_av[0,0]
+    # vec = ori_sol_pd_coor[0,0,:]
+
+    # #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
+    # if ledu==0|pdu==0:
+    #     ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+    #     text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error}')
+    #     error_vec =ax.quiver (0,0,0,1,1,1,alpha=0,color = 'magenta')
+    # else:
+    #     ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
+    #     text_item = ax.text(-2.5,-2.5,-2, f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+    #     error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'magenta')
+    #     # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
+
+    #     #text_num = ax.text2D(-0.14,-0.12,f'Led usable num:{ledu}\nPD usable num:{pdu}')
+    # #print(vec,dis)
+
+    # bandwidth_log = np.log10( bandwidth)
+    # background_log = np.log10(background)
+    # pd_saturate_log = np.log10(pd_saturate)
+    # # Add two sliders for tweaking the parameters
+    # text = [r'$^{PL}t_x$',r'$^{PL}t_y$',r'$^{PL}t_z$',\
+    #         r'$Roll ^{PL}rx$',r'$Pitch ^{PL}ry$',r'$Yaw ^{PL}rz$',\
+    #         r'LED數量$L$',r'PD數量$P$',r'LED朗博次方$M\ell$',r'PD朗博次方$Mp$',\
+    #         r'背景電流$Ib$(A)',r'頻寬$B$(Hz)',\
+    #         r'LED指向天頂角$^L\alpha$(deg)',r'PD指向天頂角$^P\alpha$(deg)',\
+    #         r'PD飽和電流$Ib$(A)']
+    # # print(len(text))
+    # init_val = np.append(np.concatenate((testp_pos,testp_rot)).flatten(),(led_num,pd_num,led_m,pd_m,background,bandwidth_log,np.rad2deg(led_alpha),np.rad2deg(pd_alpha),pd_saturate_log))
+    # # print(init_val.shape)
+    # min_val = [-1.5,-1.5,0,0,0,\
+    #             0,3,3,2,2,\
+    #             -6,3,0,0,-6]
+    # max_val = [1.5,1.5,3,2*np.pi,2*np.pi,\
+    #             2*np.pi,20,20,70,70,\
+    #             -3,12,180,180,1]
+    # sliders = []
+    # for i in np.arange(len(min_val)):
+
+    #     axamp = plt.axes([0.74, 0.8-(i*0.05), 0.12, 0.02])
+    #     # Slider
+    #     # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
+    #     if 8>i >5:
+    #         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i],valstep=1)
+    #     else:
+    #         s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
+    #     sliders.append(s)
+    # sliders[11].valtext.set_text(f'{bandwidth:.4E}')
+    # sliders[10].valtext.set_text(f'{background:.4E}')
+    # sliders[14].valtext.set_text(f'{pd_saturate:.4E}')
+    # # sliders[10].valtext.set_text(f'{shunt:.4E}')
+
+    # # Define an action for modifying the line when any slider's value changes
+    # def sliders_on_changed(val):
+
+    #     global  sphere,axis_item,ans,error_vec
+    #     ax.collections.remove(sphere)
+    #     ax.collections.remove(axis_item)
+    #     ax.collections.remove(ans)
+    #     ax.collections.remove(error_vec)
+    #     #ax.collections.remove(text_num)
         
-#         # # ax = fig.add_subplot(1,3,2,projection='3d')
-#         # # ax.set_box_aspect(aspect = (1,1,0.5))
-#         # # ax.grid(False)
-#         # # ax.set_xlim3d(-1,1)
-#         # # ax.set_ylim3d(-1,1)
-#         # # ax.set_zlim3d(0,1)
-#         # # ax.xaxis.set_ticklabels([])
-#         # # ax.yaxis.set_ticklabels([])
-#         # # ax.zaxis.set_ticklabels([])
-#         # # ax.set_axis_off()
+    #     global testp_pos,testp_rot
+    #     testp_pos = np.array([[sliders[0].val,sliders[1].val,sliders[2].val]]).T
+    #     testp_rot = np.array([[sliders[3].val,sliders[4].val,sliders[5].val]]).T
+    #     arrow_rot = rotate_mat(np.array([sliders[3].val,sliders[4].val,sliders[5].val])) @ arrow
+    #     sphere = ax.plot_wireframe(x+sliders[0].val, y+sliders[1].val, z+sliders[2].val, color="w",alpha=0.2, edgecolor="#808080")   
+    #     axis_item = ax.quiver(sliders[0].val,sliders[1].val,sliders[2].val,arrow_rot[0,:],arrow_rot[1,:],arrow_rot[2,:],arrow_length_ratio=[0.2,0.5], color='b')
+        
+    #     global pd_num,led_num,pd_m,led_m,pd_alpha,led_alpha,error,ledu,pdu,bandwidth,background,led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car,pd_saturate
+    #     led_num = int(sliders[6].val)
+    #     pd_num = int(sliders[7].val)
+    #     led_m = sliders[8].val
+    #     pd_m = sliders[9].val
+    #     background_log = sliders[10].val
+    #     bandwidth_log = sliders[11].val
+    #     led_alpha = np.deg2rad(sliders[12].val)
+    #     pd_alpha = np.deg2rad(sliders[13].val)
+    #     pd_saturate_log = sliders[14].val
+    #     led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
+    #     background = 10**background_log
+    #     bandwidth = 10**bandwidth_log
+    #     pd_saturate = 10**pd_saturate_log
+        
+    #     solve_mulmul()
+        
+        
+    #     pdu = pdu[0,0]
+    #     ledu = ledu[0,0]
+    #     error = error[0,0]
+    #     dis = sol_dis_av[0,0]
+    #     vec = ori_sol_pd_coor[0,0,:]
+    
+    #     #ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='r')
+    #     if ledu==0  or pdu==0:
+    #         print(ledu,pdu)
+    #         print('right')
+    #         ans = ax.scatter(0,0,0,marker='x',color='k',s=10000)
+    #         text_item.set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError: -')
+    #         error_vec =ax.quiver (0,0,0,1,1,1,alpha=0)
+    #     else:
+    #         print(ledu,pdu)
+    #         print(ledu==0,pdu==0)
+    #         ans = ax.quiver(0,0,0,dis*vec[0],dis*vec[1],dis*vec[2],color='k')
+    #         text_item .set_text(f'Usable LED:{ledu} \nUsable PD:{pdu}\nError:{error:.4E}')
+    #         error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0]-dis*vec[0],testp_pos[1,0]-dis*vec[1],testp_pos[2,0]-dis*vec[2],color = 'magenta')
+    #         # error_vec = ax.quiver(dis*vec[0],dis*vec[1],dis*vec[2],testp_pos[0,0,0],testp_pos[0,0,1],testp_pos[0,0,2],color = 'r')
+    #     sliders[11].valtext.set_text(f'{bandwidth:.4E}')
+    #     sliders[10].valtext.set_text(f'{background:.4E}')
+    #     sliders[14].valtext.set_text(f'{pd_saturate:.4E}')
+    #     fig.canvas.draw_idle()
 
-#         # # ax.scatter(0,0,0,color='k',marker='x')
+    plt.show()
 
-#         # # u, v = np.meshgrid(np.linspace(0,2*np.pi,100),np.linspace(0,np.pi,20))
-#         # # x = 1*np.cos(u)*np.sin(v)
-#         # # y = 1*np.sin(u)*np.sin(v)
-#         # # z = 1*np.cos(v)
-#         # # # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-#         # # ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-#         # # a = np.linspace(-1,1,21)
-#         # # b = np.linspace(-1,1,21)
-#         # # A,B = np.meshgrid(a,b)
-#         # # c = np.zeros((21,21))
-#         # # ax.plot_surface(A,B,c, color="grey",alpha=0.2)
-
-#         # # a,b,c1 = ori_ang2cart(testp_rot[1:,:])
-
-#         # # ax.quiver(0,0,0,0,0,-1,color='r')
-#         # # ax.quiver(0,0,0,a,b,c1,color = 'b')
-
-#         # ax = fig.add_subplot(1,3,2,projection='polar')
-#         # # ax.axis('equal')
-
-
-
-#         # sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap='rainbow')
-
-
-#         # fig.colorbar(sc,shrink=0.3,pad=0.1)
-
-#         # ax.grid(True)
-
-#         # fig.suptitle((f'L={led_num},P={pd_num},Ml={led_m},Mp={pd_m}'))
-
-# c = 0 
-
-# for numli in range(numl.size):
-#     for numpi in range(nump.size):
-#         for mli in range(ml.size):
-#             for mpi in range(mp.size):
-#                 for alphali in range(alphal.size):
-#                     for alphapi in range(alphap.size):
-#                         pd_alpha = alphap[alphapi]
-#                         led_alpha = alphal[alphali]
-#                         pd_num = nump[numpi]
-#                         led_num = numl[numli]
-#                         led_m = ml[mli]
-#                         pd_m = mp[mpi]
-                        
-#                         pd_beta = np.deg2rad(360/pd_num)#方位角
-#                         pd_ori_ang = np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-#                         pd_ori_car = ori_ang2cart(pd_ori_ang) #3xpd
-
-#                         led_beta = np.deg2rad(360/led_num)#方位角
-#                         led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-#                         led_ori_car = ori_ang2cart(led_ori_ang) #3xled
-                        
-#                         solve_mulmul()
-#                         ans[numli,numpi,mli,mpi,alphali,alphapi,0] = success
-#                         ans[numli,numpi,mli,mpi,alphali,alphapi,1] = error_av
-#                         c = c+1
-#                         print(c)
+    print('hi')
 
 
 
 
 
-
-
-# =============================================================================
-# 
-# solve_mulmul()
-# 
-# 
-# count_kpos = np.sum((error<tolerance),axis=1)/testp_rot.shape[1]
-# count_krot = np.sum((error<tolerance),axis=0)/testp_pos.shape[1]
-# 
-# 
-# 
-# 
-# 
-# # plot sample points
-# axis_color = 'lightgoldenrodyellow'
-# 
-# # colors = cm.rainbow()
-# 
-# fig = plt.figure(figsize=(12, 8))
-# 
-# cm = plt.cm.get_cmap('rainbow')
-# 
-# ax = fig.add_subplot(1,3,1,projection='3d')
-# ax.set_box_aspect(aspect = (1,1,1))
-# ax.set_xlabel('x')
-# ax.set_ylabel('y')
-# ax.set_zlabel('z')
-# ax.grid(True)
-# ax.set_xlim3d(-1.5,1.5)
-# ax.set_ylim3d(-1.5,1.5)
-# ax.set_zlim3d(0,3)
-# 
-# sc = ax.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap='rainbow',alpha=0.5)
-# ax.scatter(0,0,0,color='k',marker='x')
-# 
-# fig.colorbar(sc,shrink=0.3,pad=0.1)
-# 
-# =============================================================================
-
-# ax = fig.add_subplot(1,3,2,projection='3d')
-# ax.set_box_aspect(aspect = (1,1,0.5))
-# ax.grid(False)
-# ax.set_xlim3d(-1,1)
-# ax.set_ylim3d(-1,1)
-# ax.set_zlim3d(0,1)
-# ax.xaxis.set_ticklabels([])
-# ax.yaxis.set_ticklabels([])
-# ax.zaxis.set_ticklabels([])
-# ax.set_axis_off()
-
-# ax.scatter(0,0,0,color='k',marker='x')
-
-# u, v = np.meshgrid(np.linspace(0,2*np.pi,100),np.linspace(0,np.pi,20))
-# x = 1*np.cos(u)*np.sin(v)
-# y = 1*np.sin(u)*np.sin(v)
-# z = 1*np.cos(v)
-# # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-# ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-# a = np.linspace(-1,1,21)
-# b = np.linspace(-1,1,21)
-# A,B = np.meshgrid(a,b)
-# c = np.zeros((21,21))
-# ax.plot_surface(A,B,c, color="grey",alpha=0.2)
-
-# a,b,c1 = ori_ang2cart(testp_rot[1:,:])
-
-# ax.quiver(0,0,0,0,0,-1,color='r')
-# ax.quiver(0,0,0,a,b,c1,color = 'b')
-
-# =============================================================================
-# ax = fig.add_subplot(1,3,2,projection='polar')
-# # ax.axis('equal')
-# 
-# 
-# 
-# sc = ax.scatter(testp_rot[2,:],np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap='rainbow')
-# 
-# 
-# fig.colorbar(sc,shrink=0.3,pad=0.1)
-# 
-# ax.grid(True)
-# 
-# fig.suptitle((f'L={led_num},P={pd_num},Ml={led_m},Mp={pd_m}'))
-# =============================================================================
-
-
-
-
-# =============================================================================
-# # =============================================================================
-# # plot
-# # =============================================================================
-# 
-# axis_color = 'lightgoldenrodyellow'
-# 
-# fig = plt.figure(figsize=(12, 8))
-# ax = fig.add_subplot(1,2,1,projection='3d')
-# ax.set_box_aspect(aspect = (1,1,1))
-# ax.set_xlabel('x')
-# ax.set_ylabel('y')
-# ax.set_zlabel('z')
-# ax.grid(True)
-# ax.set_xlim3d(-1.5,1.5)
-# ax.set_ylim3d(-1.5,1.5)
-# ax.set_zlim3d(0,3)
-# 
-# 
-# # Adjust the subplots region to leave some space for the sliders and buttons
-# fig.subplots_adjust(left=0.25, bottom=0.25)
-# 
-# 
-# 
-# 
-# # bubble = ax.scatter(testp_pos[:,:,0],testp_pos[:,:,1],testp_pos[:,:,2],size = error+0.1)
-# # draw sphere
-# # =============================================================================
-# # u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
-# # x = 0.1*np.cos(u)*np.sin(v)
-# # y = 0.1*np.sin(u)*np.sin(v)
-# # z = 0.1*np.cos(v)
-# # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-# # ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-# # =============================================================================
-# 
-# arrow = 0.3*np.array([[0,0,1]]).T
-# ax.quiver(0,0,0,arrow[0,:],arrow[1,:],arrow[2,:],arrow_length_ratio=0.5, color='k')
-# arrow_rot = np.tile((testp_rot_matlist(testp_rot) @ arrow).squeeze(),(testp_pos.shape[1],1,1)) #kr 3 1
-# arrow_p = np.tile(testp_pos,(testp_rot.shape[1],1,1)).transpose(2,0,1)
-# # axis_item = ax.quiver(arrow_p[:,:,0],arrow_p[:,:,1],arrow_p[:,:,2],arrow_rot[:,:,0],arrow_rot[:,:,1],arrow_rot[:,:,2],arrow_length_ratio=0.5, color=["r"])
-# 
-# 
-# glob_led_pos,glob_led_ori,error,unsolve,success,error_av  = solve_mulmul(led_num,pd_num,led_m,pd_m)
-# text_item = ax.text(-2.5,-2.5,-2, f'Unsolvable:{unsolve}\nSuccess:{success}\nMean error:{error_av:.4E}')
-# 
-# 
-# 
-# error = error.flatten()
-# bubble = []
-# for i in range(error.size):
-#     if error[i] != np.inf:
-#         bubble.append(ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],s = 10**9*error+10,c = 'b'))
-#     else:
-#         bubble.append(ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],marker = 'x',c = 'k',s = 100))
-# 
-# 
-# # Add two sliders for tweaking the parameters
-# text = ['led amount','pd amount','led m','pd m']
-# init_val = np.array([led_num,pd_num,led_m,pd_m])
-# min_val = [3,3,2,2]
-# max_val = [20,20,70,70]
-# sliders = []
-# 
-# 
-# for i in np.arange(len(min_val)):
-# 
-#     axamp = plt.axes([0.84, 0.8-(i*0.05), 0.12, 0.02])
-#     # Slider
-#     # s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
-#     
-#     s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i],valstep=1)
-#     # else:
-#     #     s = Slider(axamp, text[i], min_val[i], max_val[i], valinit=init_val[i])
-#     sliders.append(s)
-# 
-# 
-# # Define an action for modifying the line when any slider's value changes
-# def sliders_on_changed(val):
-# 
-#     global  sphere,axis_item,ans
-#     #ax.collections.remove(sphere)
-#     led_num,pd_num,led_m,pd_m = sliders[0].val,sliders[1].val,sliders[2].val,sliders[3].val
-#     
-#     pd_alpha = np.deg2rad(35)#傾角
-#     pd_beta = np.deg2rad(360/pd_num)#方位角
-#     global pd_ori_ang 
-#     pd_ori_ang= np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-#     global pd_ori_car 
-#     pd_ori_car= ori_ang2cart(pd_ori_ang) #3xpd
-# 
-#     led_alpha = np.deg2rad(45)#傾角
-#     led_beta = np.deg2rad(360/led_num)#方位角
-#     global led_ori_ang 
-#     led_ori_ang = np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-#     global led_ori_car 
-#     led_ori_car= ori_ang2cart(led_ori_ang) #3xled
-#     
-#     glob_led_pos,glob_led_ori,error,unsolve,success,error_av = solve_mulmul(led_num,pd_num,led_m,pd_m )
-# 
-#     error = error.flatten()
-#     for i in range(error.size):
-#         ax.collections.remove(bubble[i])
-#         text_item.set_text(f'Unsolvable:{unsolve}\nSuccess:{success}\nMean error:{error_av:.4E}')
-#         if error[i] != np.inf:
-#             bubble[i] = ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],s = 10**9*error+10,c = 'b',)
-#         else:
-#             bubble[i] = ax.scatter(glob_led_pos[:,:,0,0],glob_led_pos[:,:,0,1],glob_led_pos[:,:,0,2],marker = 'x',c = 'k',s = 100)
-# 
-#     fig.canvas.draw_idle()
-# 
-# 
-# for i in np.arange(len(min_val)):
-#     #samp.on_changed(update_slider)
-#     sliders[i].on_changed(sliders_on_changed)
-# 
-# 
-# 
-# plt.show()
-# =============================================================================
