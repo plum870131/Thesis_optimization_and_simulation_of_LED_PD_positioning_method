@@ -866,7 +866,7 @@ elif mode =='interactive_mulmul':
         sliders[i].on_changed(sliders_on_changed)
     plt.show()
 
-elif mode=='save':
+elif mode == 'save':
     testp_pos,testp_rot = set_scenario(scenario)
     
     # ans = np.zeros((14,14,5,5,5,5,2))
@@ -891,6 +891,156 @@ elif mode=='save':
                             
                             np.save(f'./data_error/{led_num} {pd_num} {led_m} {pd_m} {np.round(np.rad2deg(led_alpha))} {np.round(np.rad2deg(pd_alpha))}.npy',error)
     
+elif mode == 'analysis_graph':
+        # initiate
+    testp_pos ,testp_rot = set_scenario(scenario)
+    kpos = testp_pos.shape[1]
+    # testp_rot = np.array([[np.pi,0,0]]).T
+    krot = testp_rot.shape[1]
+    effective = 60 
+
+    numl = np.array([3,5,8,10,15])
+    nump = np.array([3,5,8,10,15])
+    ml = np.array([1,1.5,2,3,5])
+    mp = np.array([1,1.5,2,3,5])
+    alphal = np.deg2rad(np.array([5,10,15,30,50]))
+    alphap = np.deg2rad(np.array([5,10,15,30,50]))
+
+    # for lambertian
+    pd_num = 3
+    led_num = 3
+    
+    pd_alpha = np.deg2rad(10)
+    led_alpha = np.deg2rad(10)
+
+    object1 = ml
+    object2 = mp
+
+    
+    fig1 = plt.figure(figsize=(8, 8))
+    fig2 = plt.figure(figsize=(8, 8))
+    colormap= plt.cm.get_cmap('YlOrRd')
+    normalizep =  colors.Normalize(vmin=0, vmax=krot)
+    normalizer =  colors.Normalize(vmin=0, vmax=kpos)
+
+    fig1.subplots_adjust(wspace=0.5,hspace=0.5,right = 0.85,left = 0.1,top = 0.9)
+    fig1.suptitle ('平移樣本點')
+    fig2.subplots_adjust(wspace=0.8,hspace=0.8,right = 0.85,left = 0.13,top = 0.9)
+    fig2.suptitle('旋轉樣本點')
+    # text_ax1 = fig1.add_axes([0,0,0.2,1], frameon=False)
+    # text_ax2 = fig1.add_axes([0,0.9,1,0.1], frameon=False)
+    for i in range(len(object2)):
+        fig1.text(0.02,0.85-i*0.7/(len(object2)-1),f'Mp={object2[i]}',fontsize = 10)
+        fig1.text(0.12+i*0.8/len(object2),0.92,f'Ml={object1[i]}',fontsize = 10)
+        fig2.text(0.02,0.85-i*0.7/(len(object2)-1),f'Mp={object2[i]}',fontsize = 10)
+        fig2.text(0.12+i*0.8/len(object2),0.94,f'Ml={object1[i]}',fontsize = 10)
+
+    
+    
+    for A in range(len(object1)):
+        for B in range(len(object2)):
+            led_m = object1[A]
+            pd_m = object2[B]
+            led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
+            solve_mulmul()
+
+            count_kpos = np.nansum(error<tolerance,axis=1)
+            count_krot = np.nansum(error<tolerance,axis=0)
+            effective_pos = count_kpos/krot >=effective/100
+            effective_rot = count_krot/kpos >=effective/100
+
+            ax1 = fig1.add_subplot(len(object1),len(object2),1+A*len(object1)+B,projection='3d')
+            ax1.set_box_aspect(aspect = (1,1,1))
+
+            # ax1.set_xlabel('x')
+            # ax1.set_ylabel('y')
+            # ax1.set_zlabel('z')
+            ax1.grid(True)
+            if scenario ==2:
+                ax1.set_xlim3d(-3,3)
+                ax1.set_ylim3d(-3,3)
+                ax1.set_zlim3d(-3,3)
+            else:
+                ax1.set_xlim3d(-1.5,1.5)
+                ax1.set_ylim3d(-1.5,1.5)
+                ax1.set_zlim3d(0,3)
+            
+            sc1 = ax1.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalizep,alpha=0.5)
+            ax1.scatter(0,0,0,color='k',marker='x')
+
+            
+            ax2 = fig2.add_subplot(len(object1),len(object2),1+A*len(object1)+B,projection='polar')
+    
+            sc2 = ax2.scatter(np.rad2deg(testp_rot[2,:]),np.rad2deg(testp_rot[1,:])  ,c = count_krot,cmap=colormap,norm = normalizer)
+            ax2.set_ylim([0,rot_max])
+            # ax2.text(1,1,'pitch(degree)',rotation = 15)
+            # ax2.text(np.deg2rad(60),80,'yaw(degree)')
+    
+    cbar_ax = fig1.add_axes([0.92, 0.15, 0.02, 0.7])       
+    colorbar = fig1.colorbar(sc1, cax=cbar_ax)
+    colorbar.ax.set_ylabel('容許範圍內的樣本點數量')
+             
+    cbar_ax = fig2.add_axes([0.92, 0.15, 0.02, 0.7])
+    colorbar = fig2.colorbar(sc2, cax=cbar_ax)
+    plt.show()
+    print('hi')
+    
+elif mode == 'config_interactive':
+    # initiate
+    testp_pos ,testp_rot = set_scenario(scenario)
+    kpos = testp_pos.shape[1]
+    # testp_rot = np.array([[np.pi,0,0]]).T
+    krot = testp_rot.shape[1]
+    effective = 60 
+
+
+
+    pd_num = 3
+    led_num = 3
+    led_m = 5.3
+    pd_m = 1
+    
+    pd_alpha = np.deg2rad(10)
+    led_alpha = np.deg2rad(10)
+    
+    led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
+    
+    solve_mulmul()
+    count_total = np.nansum(error<tolerance)
+    count_kpos = np.nansum(error<tolerance,axis=1)
+    count_krot = np.nansum(error<tolerance,axis=0)
+    effective_pos = count_kpos/krot >=effective/100
+    effective_rot = count_krot/kpos >=effective/100
+
+    fig = plt.figure(figsize=(15, 8))
+    sup = fig.suptitle(count_total)
+    colormap= plt.cm.get_cmap('YlOrRd')
+    normalizep =  colors.Normalize(vmin=0, vmax=krot)
+    normalizer =  colors.Normalize(vmin=0, vmax=kpos)
+    fig.subplots_adjust(wspace=0.3,hspace=0.3)
+    
+    ax1 = fig.add_subplot(2,4,1,projection='3d')
+    ax1.set_box_aspect(aspect = (1,1,1))
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+    ax1.set_zlabel('z')
+    ax1.grid(True)
+    if scenario ==2:
+        ax1.set_xlim3d(-3,3)
+        ax1.set_ylim3d(-3,3)
+        ax1.set_zlim3d(-3,3)
+    else:
+        ax1.set_xlim3d(-1.5,1.5)
+        ax1.set_ylim3d(-1.5,1.5)
+        ax1.set_zlim3d(0,3)
+    
+    sc1 = ax1.scatter(testp_pos[0,:],testp_pos[1,:],testp_pos[2,:],c = count_kpos,cmap=colormap,norm = normalizep,alpha=0.5)
+    ax1.scatter(0,0,0,color='k',marker='x')
+    
+    colorbar = fig.colorbar(sc1,shrink=0.3,pad=0.15)
+    ax1.set_title('平移樣本點')
+    
+    colorbar.ax.set_ylabel('容許範圍內的樣本點數量')
     
     
     
