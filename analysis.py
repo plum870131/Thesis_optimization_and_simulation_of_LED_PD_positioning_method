@@ -262,8 +262,11 @@ def set_scenario(scenario):
         dis_sample = np.linspace(0,3,4+1)[1:]
         # testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
         u, v = np.meshgrid(np.linspace(0,2*np.pi,2*sample+1)[0:-1:1],np.linspace(0,np.pi,sample+1)[1:-1:1])
+        print(u.shape,v.shape)
         u = np.append(u.reshape((-1,)),0)
         v = np.append(v.reshape((-1,)),0)
+        u = np.append(u.reshape((-1,)),0)
+        v = np.append(v.reshape((-1,)),np.pi)
         x = (1*np.cos(u)*np.sin(v))
         y = (1*np.sin(u)*np.sin(v))
         z =( 1*np.cos(v))
@@ -277,6 +280,7 @@ def set_scenario(scenario):
         print(testp_pos.shape[1],'kpos')
         
         testp_rot = np.stack((np.zeros(u.shape),v,u))
+        print(testp_rot.shape[1],'krot')
         # testp_rot = np.concatenate((testp_rot,np.array([[]])))
     if scenario ==3:
         global ma
@@ -323,7 +327,7 @@ ori_sol_led_coor = []
 # =======================================================================
 threshold = 10**(-9)
 tolerance = 0.05
-effective = 70
+effective = 80
 weight_form = 'mean'
 
 # 硬體參數
@@ -346,13 +350,13 @@ bandwidth = 370*10**3
 # mode = 'scenario'
 # mode = 'analysis'
 # mode = 'interactive_1to1'
-# mode = 'interactive_mulmul'
+mode = 'interactive_mulmul'
 # mode = 'save'
 # mode = 'analysis_graph'
 # mode = 'config_interactive'
-mode = 'effect_plot'
+# mode = 'effect_plot'
 # mode = 'draw_config'
-scenario = 0
+scenario = 3
 config_num = 0
 rot_max = 60
 gain = 1.14
@@ -1424,7 +1428,7 @@ elif mode == 'effect_plot':
 
     meshl,meshp = np.meshgrid( np.rad2deg(alphalist),np.rad2deg(alphalist))
     # meshl,meshp = np.meshgrid(mlist,mlist)
-
+    print(meshl,'meshl')
     surface = np.zeros((len(numlist),len(alphalist),len(alphalist)))
     # surface =  np.zeros((len(numlist),len(mlist),len(mlist)))
 
@@ -1452,7 +1456,7 @@ elif mode == 'effect_plot':
                 count = count+1
                 print(count)
         
-        sur = ax.plot_surface(np.rad2deg(meshl), np.rad2deg(meshp), surface[num,:,:], label =  r'$L=P={{{:2d}}}$'.format(numlist[num]),alpha=0.7)
+        sur = ax.plot_surface((meshl), (meshp), surface[num,:,:], label =  r'$L=P={{{:2d}}}$'.format(numlist[num]),alpha=0.7)
         sur._facecolors2d = sur._facecolor3d
         sur._edgecolors2d = sur._edgecolor3d
         
