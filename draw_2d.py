@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 from turtle import back
 from funcfile import *
@@ -9,7 +11,29 @@ import matplotlib.colors as colors
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False 
 
-fig = plt.figure(figsize=(8, 6))
+fig = plt.figure(figsize=(4, 3))
+
+
+l1 = [1.344,	1.5	,1.5	,1.187,	1.292,	1.865]
+p1 = [1.656	,2.072,	2.333,	2.177	,2.177,	2.23]
+l3 = [1.187	,1.24	,1.24,	1.24	,1.5	,1.5]
+p3 = [1.812,1.396,	1.5,	1.812	,2.33	,2.385]
+
+
+led_list=np.arange(3,9,1)
+ax = fig.add_subplot(1,1,1)
+# for i in range()scene_c,label='最佳解的系統成效Nt')
+ax.plot(led_list,l1,label='To=0.01的LED朗博次方',color='b')
+ax.plot(led_list,l3,label='To=0.03的LED朗博次方',color='b',linestyle='dashed')
+ax.plot(led_list,p1,label='To=0.01的PD朗博次方',color='r')
+ax.plot(led_list,p3,label='To=0.03的PD朗博次方',color='r',linestyle='dashed')
+# ax.plot(led_list,10000*np.ones(led_list.shape),label='To=0.05',color='g')
+ax.set_ylabel('最佳朗博次方M')
+ax.set_xlabel('LED與PD的硬體總數L=P')
+ax.grid()
+ax.legend(loc = 'upper left')
+
+
 
 scene_a = [\
 [39522,42216,42828,43765,43777,43265],\
@@ -25,18 +49,23 @@ sceneb2 = [5123		,5747	,	5878		,5893	,	5915	,	6172]
 # 5123		5747		5878		5893		5915		6172
 
 
-led_list=np.arange(3,9,1)
-ax = fig.add_subplot(1,1,1)
-# for i in range():
-#     ax.plot(np.arange(3,9,1),scene_a[i,:],label=f'LED總數 L={led_list[i]}')
-# ax.plot(led_list,scene_c,label='最佳解的系統成效Nt')
-ax.plot(led_list,sceneb1,label='To=0.01',color='r')
-ax.plot(led_list,sceneb2,label='To=0.03',color='b')
-ax.plot(led_list,10000*np.ones(led_list.shape),label='To=0.05',color='g')
-ax.set_ylabel('於容許範圍內的樣本點數量')
-ax.set_xlabel('LED與PD的硬體總數L=P')
-ax.grid()
-ax.legend(loc = 'upper left')
+
+
+# led_list=np.arange(3,9,1)
+# ax = fig.add_subplot(1,1,1)
+# # for i in range():
+# #     ax.plot(np.arange(3,9,1),scene_a[i,:],label=f'LED總數 L={led_list[i]}')
+# # ax.plot(led_list,scene_c,label='最佳解的系統成效Nt')
+# ax.plot(led_list,sceneb1,label='To=0.01',color='r')
+# ax.plot(led_list,sceneb2,label='To=0.03',color='b')
+# ax.plot(led_list,10000*np.ones(led_list.shape),label='To=0.05',color='g')
+# ax.set_ylabel('於容許範圍內的樣本點數量')
+# ax.set_xlabel('LED與PD的硬體總數L=P')
+# ax.grid()
+# ax.legend(loc = 'upper left')
+
+
+
 
 # led_list=np.arange(3,14,1)
 # ax = fig.add_subplot(1,1,1)

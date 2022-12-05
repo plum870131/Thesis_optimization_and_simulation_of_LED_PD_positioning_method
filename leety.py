@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from turtle import back
 from funcfile import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,138 +11,117 @@ import matplotlib.colors as colors
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False 
 
+
+# 解多led對多pd的定位
 def solve_mulmul():
-# set environment
 
-    global threshold #= 0.001
-    
-    global pd_num #= int(pd_num)
-    global led_num# = int(led_num)
-    global pd_m #= int(pd_m)
-    global led_m #= int(led_m)
-    
+    # 從global取數值
+    global threshold #訊號小於閥值視為零 
+    global pd_num #pd數量
+    global led_num#led數量
+    global pd_m #pd朗博次方
+    global led_m #led朗博次方
+    global pd_area #pd有效面積
+    global led_pt #led總輻射通量
+    global pd_saturate #pd飽和電流
+    global pd_respon#pd響應綠
 
-    pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
-    #led_num = 5
-    #led_m = 10
-    led_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
-    # led_alpha = np.deg2rad(45)#傾角
-    # led_beta = np.deg2rad(360/led_num)#方位角
+
     
-    global pd_area #= 1
-    global led_pt #= 1
-    global pd_saturate #= np.inf
-    global pd_respon# = 1
+    # config 硬體於各自座標系擺設
+    pd_pos = np.tile(np.array([[0,0,0]]),(pd_num,1)).T # PD位置 [3xpd_num]
+    global pd_ori_ang #PD球座標系指向[2(alpha,beta)xP]
+    global pd_ori_car #PD卡氏指向[3xP]
     
-    # config
-    pd_pos = np.tile(np.array([[0,0,0]]),(pd_num,1)).T # 3xpd_num
-    global pd_ori_ang #= np.stack( (pd_alpha*np.ones(pd_num),(pd_beta*np.arange(1,pd_num+1))),0 )#2x?
-    global pd_ori_car #= ori_ang2cart(pd_ori_ang) #3xpd
-    # pd_rot_mat = rotate_z_mul(pd_ori_ang[1,:]) @ rotate_y_mul(pd_ori_ang[0,:])#pdx3x3
-    
-    led_pos = np.tile(np.array([[0,0,0]]).T,(1,led_num))
-    global led_ori_ang #= np.stack( (led_alpha*np.ones(led_num),(led_beta*np.arange(1,led_num+1))),0 )#2x?
-    global led_ori_car #= ori_ang2cart(led_ori_ang) #3xled
-    # led_rot_mat = rotate_z_mul(led_ori_ang[1,:]) @ rotate_y_mul(led_ori_ang[0,:])#ledx3x3
+    led_pos = np.tile(np.array([[0,0,0]]).T,(1,led_num))# LED位置 [3xled_num]
+    global led_ori_ang #LED球座標系指向[2(alpha,beta)xL]
+    global led_ori_car #LED卡氏指向[3xL]
     
     
-    # sample point
-    global testp_pos# = (np.mgrid[-1:1:4j, -1:1:4j, 1:3:4j].reshape(-1,4*4*4)) # 3x?
-    # kpos = testp_pos.shape[1]
-    global testp_rot #= np.array([[np.pi,0,0],[0,np.pi,0]]).T
-    # krot = testp_rot.shape[1]
-    # testp_pos = np.array([[0,1,1],[0,0,1],[0,-1,2]]).T # 3x?
-    kpos = testp_pos.shape[1]
-    # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
-    krot = testp_rot.shape[1]
+    # sample point 設定樣本點
+    global testp_pos # 平移樣本點 [3xkp]
+    global testp_rot # 旋轉樣本點 [3xkr]
+    kpos = testp_pos.shape[1] # 平移樣本數量
+    krot = testp_rot.shape[1] # 旋轉樣本數量
     
-    #(kpos,krot,led_num,3)  
+    # 將led位置與指向投影到pd座標系上^PL{H}
+    #[kpos,krot,led_num,3(xyz)]
     glob_led_pos = global_testp_trans(global_testp_after_rot(led_pos,testp_rot), testp_pos)
     glob_led_ori = np.tile(global_testp_after_rot(led_ori_car,testp_rot), (kpos,1,1,1)).transpose((0,1,3,2))
-    #(kpos,krot,pd_num,3)  
+    # 將pd位置與指向投影到ked座標系上^LP{H}
+    #[kpos,krot,pd_num,3(xyz)]  
     glob_inv_pd_pos = testp_rot_matlist(testp_rot).transpose(0,2,1)
     glob_inv_pd_pos = (np.tile(glob_inv_pd_pos@ pd_pos,\
                                 (kpos,1,1,1))\
                         -np.tile(glob_inv_pd_pos@testp_pos\
                                  ,(pd_num,1,1,1)).transpose(3,1,2,0)\
                         ).transpose(0,1,3,2)
-    # print(glob_inv_pd_pos)
     
-    # print(glob_inv_pd_pos)
-    
-    # krot,kpos,led_num,pd_num
+    # 計算交互關係：距離、出入射角
+    # [krot,kpos,led_num,pd_num]
     dis,in_ang,out_ang = interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car)
-    # print(in_ang,'in')
-    # print(out_ang,'out')
+   
     
-    # 在view angle外的寫nan
-    
+
+    # 在可視範圍與90度外的讀不到：寫nan
+    pd_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
+    led_view = 2*np.arccos(np.exp(-np.log(2)/pd_m))
     in_ang_view = filter_view_angle(in_ang,pd_view)
     out_ang_view = filter_view_angle(out_ang,led_view)
-    # in_ang_view[np.cos(in_ang_view)<0]=np.nan
-    # out_ang_view[np.cos(out_ang_view)<0]=np.nan
     in_ang_view[in_ang_view>=np.pi/2]=np.nan
     out_ang_view[out_ang_view>=np.pi/2]=np.nan
-    # print(out_ang_view,'out')
+
     
-    const = pd_respon * pd_area * led_pt * (led_num+1)/(2*np.pi)
-    light = const * np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
-    # light = np.divide(np.multiply( np.power(np.cos(in_ang_view),pd_m), np.power(np.cos(out_ang_view),led_m) ), np.power(dis,2) )
-    # mask_light= np.isnan(light)
-    # print(np.sum(light<0),'here')
-    # light[mask_light] = 0
-    
-    # print(light)
-    # =============================================================================
+
+    # 計算理想光電流強度
+    const = pd_respon * pd_area * led_pt * (led_num+1)/(2*np.pi) 
+    light = const *  \
+            np.divide(\
+                np.multiply( \
+                    np.power(np.cos(in_ang_view),pd_m), \
+                    np.power(np.cos(out_ang_view),led_m) ), \
+                np.power(dis,2) \
+            )
+
+
     # 這裡處理加上noise的部分
-    # =============================================================================
-    
     boltz = 1.380649 * 10**(-23)
-    temp_k = 300
+    temp_k = 300 # 絕對溫度
     elec_charge = 1.60217663 * 10**(-19)
     
-    global bandwidth #= 300
-    global shunt #= 50
+    global bandwidth # 頻寬
+    global shunt # 只看PD的話是看shunt R但當整個電路接起來時則是看電路的電阻
     global background,dark_current,NEP,capacitance
 
-    shunt = 1/(2*np.pi*bandwidth*capacitance)
-
+    shunt = 1/(2*np.pi*bandwidth*capacitance) # 頻寬用RLC電路 B=1/2piRC來算
     thermal_noise = 4*temp_k*boltz*bandwidth/shunt
-    
+    # noise variance
     noise_var = 1*np.sqrt(thermal_noise\
               + 2*elec_charge*bandwidth*(light+background+dark_current)\
                   ) #+ 2*elec_charge*bandwidth*dark
-    # print(noise_var,'var')
+    # 利用random產生隨機noise大小，但需固定noise seed以避免random的影響
     np.random.seed(10)
-    noise = np.random.standard_normal(size = light.shape)
+    noise = np.random.standard_normal(size = light.shape) 
     noise = np.multiply(noise,noise_var)
-    # print(noise,'noise')
-    # print(np.nanmax(noise),'noise')
-    # print(noise[0,0,0,0])
-    # print(shunt)
-    # print(noise)
+
+    # 利用gain模擬multipath effect的影響
     global gain
     light_noise = gain*(light) + noise
-    # NEP = NEP# *np.sqrt(bandwidth)
-    
-    light_floor = light_noise # NEP*np.floor_divide(light_noise, NEP)
-    # print(np.nanmean(light),'light')
-    
-    # print(np.nanmax(light_floor),'!!!!!')
+    light_floor = light_noise
+
+
+
+
     # -------以下是硬體部分------------------
     
-    
-    # snr = np.divide(noise,light_floor)
-    # print(snr)
-    
-    # filter掉訊號中小於threshold的部分：nan
-    # krot,kpos,led_num,pd_num
-    light_f = np.copy(light_floor)
-    
+  
+    # 避免改到原始數據，copy一個light_f，後處理更動light_f
+    light_f = np.copy(light_floor) 
+    # filter掉訊號中小於threshold與飽和的訊號：nan
+    # [krot,kpos,led_num,pd_num]
     light_f[light_f <= threshold] = np.nan
     light_f[light_f >= pd_saturate] = np.nan
-    # print(light)
-    # print(light_f<=threshold)
+
     
     
     
@@ -152,104 +130,101 @@ def solve_mulmul():
     # 判斷特定LED是否有>=三個PD接收（才能判斷方位）
     # =============================================================================
     
-    # print(light_f,'light')
-    
-    led_usable = np.sum(~np.isnan(light_f),axis=3)>2 #kp,kr,led,
-    
-    pd_usable = np.sum(~np.isnan(light_f),axis =2 )>2#kp,kr,pd,
-    # pd_usable[2]=False
-    # 遮掉unusable
-    light_led = np.ma.masked_array(light_f,np.tile(~led_usable,(pd_num,1,1,1)).transpose(1,2,3,0)) #kp,kr,ledu, pd
-    light_pd = np.ma.masked_array(light_f, np.tile(~pd_usable,(led_num,1,1,1)).transpose(1,2,0,3))#.reshape(kpos,krot,led_num,-1) #kp,kr,led, pdu
-    # print(light_f,"---------")
+    led_usable = np.sum(~np.isnan(light_f),axis=3)>2 # [kp,kr,L,]
+    pd_usable = np.sum(~np.isnan(light_f),axis =2 )>2# [kp,kr,P,]
 
-    
+    # 遮掉unusable
+    # [kp,kr,led, pd]
+    light_led = np.ma.masked_array(\
+                    light_f,\
+                    np.tile( ~led_usable,(pd_num,1,1,1)) .transpose(1,2,3,0)\
+                ) 
+    light_pd = np.ma.masked_array(\
+                    light_f, \
+                    np.tile(~pd_usable,(led_num,1,1,1)) .transpose(1,2,0,3)\
+                )
+
     # =============================================================================
     # 取強度最大者作為ref1_led，建立平面的基準
     # 並利用maskled將light_led分成ref和other
-    # => 計算ratio_led
     # =============================================================================
-    global ledu,pdu
-    ledu = led_usable.sum(axis=2)#kp,kr
-    pdu = pd_usable.sum(axis=2)#kp,kr
-    # print(ledu,pdu)
+    global ledu,pdu 
+    ledu = led_usable.sum(axis=2)#[kp,kr]
+    pdu = pd_usable.sum(axis=2)#[kp,kr]
     
-    # print(light,'light')
-    nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other = get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_car,pd_ori_car)
-    cross_led,cross_pd = get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpos,krot,nor_led,nor_pd,conf_led_ref,conf_pd_ref)
+    # =============================================================================
+    # 計算ratio、進而計算出平面法向量
+    # =============================================================================
+    # [kp kr l p 3]
+    nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other = \
+        get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_car,pd_ori_car)
     
-    # print('=============')
-    # print(nor_led,'norled')
-    # print(nor_pd,'norpd')
-    # print(cross_led,'crossled')
-    # print(cross_pd,'crosspd')
-    # weight_form = 'mean''weight'
+    # =============================================================================
+    # 計算可能方位解
+    # =============================================================================
+    # [kp kr l p 3]
+    cross_led,cross_pd = \
+        get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpos,krot,nor_led,nor_pd,conf_led_ref,conf_pd_ref)
     
-    global weight_form 
-    mask_led = ~np.isnan(cross_led[:,:,:,:,0].filled(fill_value=np.nan))
-    mask_pd = ~np.isnan(cross_pd[:,:,:,:,0].filled(fill_value=np.nan))
-    mask_total = (mask_led|mask_pd)# kp kr l p 3
-    mask_count = np.sum(mask_total,axis=(2,3)).reshape((kpos,krot,1,1))
+    
+    # =============================================================================
+    # 不同取平均方法
+    # =============================================================================
+    global weight_form  # 讀取哪種平均法 0:平均 1:權重
+    global ori_sol_pd_coor,ori_sol_led_coor
+
 
     
-    # 答案求平均（忽略nan）
-    global ori_sol_pd_coor,ori_sol_led_coor
-    if weight_form =='weight':
-        # global ori_sol_pd_coor,ori_sol_led_coor
-    # kp kr l p 
-        mask_led = np.isnan((cross_led[:,:,:,:,0]).filled(fill_value=np.nan))#True是不要的
-        weight_led = np.ma.array(light,mask = mask_led).filled(fill_value=np.nan)
-        total_led = np.nansum(weight_led,axis=(2,3))
-        total_led = np.tile(total_led,(1,1,1,1)).transpose(2,3,0,1)# kp kr 1 1
-        weight_led = np.divide(weight_led,total_led) # kp kr l p 
-        weight_led = np.tile(weight_led,(1,1,1,1,1)).transpose(1,2,3,4,0)
-        sol_led = np.multiply(weight_led,cross_led)
-        ori_sol_pd_coor = np.nansum(sol_led,axis=(2,3))
+    if weight_form =='weight':# 以光強度權重，強度越大代表越準
+        # [kp kr l p ]
+        # led只要看cross解得出來的部分
+        mask_led = np.isnan((cross_led[:,:,:,:,0]).filled(fill_value=np.nan))#True是不要的，挑出cross_led是nan的
+        weight_led = np.ma.array(light_f,mask = mask_led).filled(fill_value=np.nan) #把light訊號中解不出來的忽略
+        total_led = np.nansum(weight_led,axis=(2,3)) #算得出來的光訊號強度總和
+        total_led = np.tile(total_led,(1,1,1,1)).transpose(2,3,0,1)# 把形狀變成4D可和weight_led broadcast #[kp kr 1 1]
+        weight_led = np.divide(weight_led,total_led) # [kp kr l p ]
+        weight_led = np.tile(weight_led,(1,1,1,1,1)).transpose(1,2,3,4,0)# 把形狀變成5D可和cross_led broadcast
+        sol_led = np.multiply(weight_led,cross_led) # 各解乘上weight
+        ori_sol_pd_coor = np.nansum(sol_led,axis=(2,3)) #[kp kr 3]
         
+        # 邏輯同上
         mask_pd = np.isnan((cross_pd[:,:,:,:,0]).filled(fill_value=np.nan))#True是不要的
-        weight_pd = np.ma.array(light,mask = mask_pd).filled(fill_value=np.nan)
+        weight_pd = np.ma.array(light_f,mask = mask_pd).filled(fill_value=np.nan)
         total_pd = np.nansum(weight_pd,axis=(2,3))
         total_pd = np.tile(total_pd,(1,1,1,1)).transpose(2,3,0,1)# kp kr 1 1
         weight_pd = np.divide(weight_pd,total_pd) # kp kr l p 
         weight_pd = np.tile(weight_pd,(1,1,1,1,1)).transpose(1,2,3,4,0)# kp kr l p 3
         sol_pd = np.multiply(weight_pd,cross_pd)
-        ori_sol_led_coor = np.nansum(sol_pd,axis=(2,3)) # kp kr 3
+        ori_sol_led_coor = np.nansum(sol_pd,axis=(2,3)) #[kp kr 3]
         
-    # cross_led_av = np.multiply(cross_led,weight)
-    # ori_sol_pd_coor = np.sum(np.multiply(cross_led,np.tile(weight,(3,1,1,1,1)).transpose((1,2,3,4,0))),axis=(2,3)).filled(fill_value=np.nan)
-    # ori_sol_led_coor = np.sum(np.multiply(cross_pd,np.tile(weight,(3,1,1,1,1)).transpose((1,2,3,4,0))),axis=(2,3)).filled(fill_value=np.nan)
-    elif weight_form =='mean':
-        
-        ori_sol_pd_coor = np.nanmean(cross_led,axis = (2,3))#.filled(fill_value=np.nan) #kp kr 3,
-        ori_sol_led_coor = np.nanmean(cross_pd,axis = (2,3))#.filled(fill_value=np.nan) #kp kr 3,
-    # print(ori_sol_pd_coor.shape,ori_sol_led_coor.shape)
+
+    elif weight_form =='mean': # 答案求平均（忽略nan）
+        # 把所有可能解平均
+        ori_sol_pd_coor = np.nanmean(cross_led,axis = (2,3)) #[kp kr 3]
+        ori_sol_led_coor = np.nanmean(cross_pd,axis = (2,3)) #[kp kr 3]
     
     
-    # 由答案算in_ang,out_ang - ori_sol 3,  - ori_pd 3,pd
-    sol_in_ang = np.arccos(np.inner(ori_sol_pd_coor,pd_ori_car.T)) # kp kr pd,
-    sol_out_ang = np.arccos(np.inner(ori_sol_led_coor,led_ori_car.T)) #kp kr led,
-    # print(sol_out_ang)
+    
+    # 用內積計算出入角度
+    sol_in_ang = np.arccos(np.inner(ori_sol_pd_coor,pd_ori_car.T)) # [kp kr pd]
+    sol_out_ang = np.arccos(np.inner(ori_sol_led_coor,led_ori_car.T)) #[kp kr led]
+    # 用出入角度與光強度計算距離
     sol_dis = np.sqrt(const * np.divide(np.multiply(\
                                                     np.tile(np.power(np.cos(sol_in_ang),pd_m),(led_num,1,1,1)).transpose(1,2,0,3),\
                                                     np.tile(np.power(np.cos(sol_out_ang),led_m),(pd_num,1,1,1)).transpose(1,2,3,0)\
                                                     ),\
-                                        light_f)) #kp kr l p
+                                        light_f)) #[kp kr l p]
         
-    # check_dis = np.sqrt(np.sum(np.square(np.tile(glob_led_pos,(pd_num,1,1,1,1)).transpose(1,2,3,0,4)),axis=4))
-    # check_dis = np.sum(~np.isclose(np.ma.masked_invalid(sol_dis),check_dis))
-    # print('------------------------------------')
-    # print('False dis:' ,check_dis)
-    # print('------------------------------------')
-    global sol_dis_av
-    # sol_dis_av= np.sum(np.multiply(sol_dis,weight),axis=(2,3))
-    # print(sol_dis_av.shape,'~~~')
+
+    # output距離與error寫到global去
+    global sol_dis_av, error
     sol_dis_av = np.nanmean(sol_dis,axis = (2,3))#kp kr
-    # print()
-    global error
-    error = (np.sum(np.square(np.multiply(ori_sol_pd_coor,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]),axis=2))
+    error = (np.sum(np.square(\
+                np.multiply(ori_sol_pd_coor,sol_dis_av.reshape(kpos,-1,1))-glob_led_pos[:,:,0,:]\
+            ),axis=2))
 
 
-
+# 用編號選擇硬體參數
 def set_hardware(led_hard,pd_hard):
     led_list = [\
                 1.7*np.pi, 80*10**(-3), 1.35,1.15
@@ -264,60 +239,69 @@ def set_hardware(led_hard,pd_hard):
                [0.38, 36*10**(-6), 3.5*10**(-14), 100*10**(-12), 0.1*10**9, 700*10**(-12)]\
                ]
     pd_list = np.array(pd_list)
-    # print(pd_list[pd_hard,:])
-    # print(led_list[led_hard])
     return led_list[led_hard],pd_list[pd_hard,:]
 
+# 用編號選擇使用情境甲到丁
 def set_scenario(scenario):
-    if scenario ==0:
-        testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
-        # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
+    # 3x3x3公尺空間
+    if scenario ==0: 
+        #平移樣本
+        testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3xkp
+        #旋轉樣本
         testp_rot  = ((np.mgrid[0:0:1j, 10:60:6j, 0:360:11j])[:,:,:,:-1])
-        # print(testp_rot,testp_rot.shape)
         testp_rot = np.deg2rad(testp_rot.reshape((3,-1)))
-        testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
-    
+        testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)\
+                    +np.array([[np.pi,0,0]]).T # 加上一個不多做旋轉的樣本點，並將所有樣本點pitch轉pi變面對面
+    # 平面上
     elif scenario ==1:
         testp_pos = np.mgrid[-1.5:1.5:100j, -1.5:1.5:100j, 2.5:2.5:1j].reshape((3,-1)) # 3x?
         testp_rot = np.array([[np.pi,0,0]]).T
         print(testp_pos[0,:].shape)
+    
+    # 球狀空間：任意位置與角度皆能求解
     elif scenario ==2:
         sample = 6
+        # 平移樣本以球座標系表示的距離項
         dis_sample = np.linspace(0,3,4+1)[1:]
-        # testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
-        u, v = np.meshgrid(np.linspace(0,2*np.pi,2*sample+1)[0:-1:1],np.linspace(0,np.pi,sample+1)[1:-1:1])
-        print(u.shape,v.shape)
+
+        # 用球座標系的天頂角v與方位角 表示任意姿態任意方位（不含距離）
+        u, v = np.meshgrid(\
+                            np.linspace(0,2*np.pi,2*sample+1)[0:-1:1],\
+                            np.linspace(0,np.pi,sample+1)[1:-1:1]\
+                        )
+        # 加上在極北點的角度
         u = np.append(u.reshape((-1,)),0)
         v = np.append(v.reshape((-1,)),0)
+        # 加上在極南點的角度
         u = np.append(u.reshape((-1,)),0)
         v = np.append(v.reshape((-1,)),np.pi)
+        # 把球座標系換到卡氏
         x = (1*np.cos(u)*np.sin(v))
         y = (1*np.sin(u)*np.sin(v))
         z =( 1*np.cos(v))
+        # U:xyz合併成矩陣[3x?]
         U = np.stack((x,y,z))
-        # print(U.shape)
+        # 將不同距離考慮進來
         U = np.tile(U,(dis_sample.size,1,1)).transpose((1,2,0))
         testp_pos = np.multiply(dis_sample.reshape((1,1,-1)),U)
-        # testp_pos = np.concatenate((U,2*U,3*U),axis = 0)
+        # reshape成2D [3x?]的大小
         testp_pos = testp_pos.reshape((3,-1))
-        # testp_pos = 3*U
-        print(testp_pos.shape[1],'kpos')
         
-        
+        # 旋轉樣本點：pitch=0, roll和yaw以任意姿態表示
         testp_rot = np.stack((np.zeros(u.shape),v,u))
-        print(testp_rot.shape[1],'krot')
-        # testp_rot = np.concatenate((testp_rot,np.array([[]])))
+    
+    # scenario:0 的擴大版
     if scenario ==3:
-        global ma
+        global ma # 空間邊長
         testp_pos = np.mgrid[-ma/2:ma/2:10j, -ma/2:ma/2:10j, 0:ma:10j].reshape((3,-1)) # 3x?
-        # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
         testp_rot  = ((np.mgrid[0:0:1j, 10:60:6j, 0:360:11j])[:,:,:,:-1])
-        # print(testp_rot,testp_rot.shape)
         testp_rot = np.deg2rad(testp_rot.reshape((3,-1)))
         testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
     
     return testp_pos,testp_rot
 
+# 用編號選擇硬體指向怎麼擺設
+# 0:環狀擺法 1:環狀擺法與一支指向天頂的 2.兩圈環狀擺法
 def set_config(config_num,led_alpha,pd_alpha):
     if config_num ==0:
         # pd_alpha = np.deg2rad(10)
@@ -372,6 +356,10 @@ def set_config(config_num,led_alpha,pd_alpha):
 
     return led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car
 
+
+
+
+
 # =============================================================================
 # # 前置
 # =============================================================================
@@ -390,22 +378,21 @@ ori_sol_led_coor = []
 # =============================================================================
 # # set environment
 # =======================================================================
-threshold = 10**(-9)
-tolerance = 0.05
-effective = 80
+threshold = 10**(-9)  # 閥值
+tolerance = 0.05  # 容許範圍(m)
+effective = 80  # 有效閥值(%)
+
+# 設定演算法處理多個解的方法
 weight_form = 'mean'
 # weight_form = 'weight'
 
 # 硬體參數
-
-led_hard = 3
-pd_hard = 2
+led_hard = 3 # led款式編號
+pd_hard = 2  # pd款式編號
 led_para,pd_para = set_hardware(led_hard, pd_hard)
 led_pt = led_para
 pd_respon,pd_area,NEP,dark_current,shunt,capacitance = pd_para
-
-background = 5100*10**(-6)#
-# background = 740*10**(-6)
+background = 5100*10**(-6)
 pd_saturate = 10*10**(-3)#np.inf
 
 shunt = 10**3 # 10-1000 mega
@@ -413,10 +400,12 @@ shunt = 10**3 # 10-1000 mega
 bandwidth = 370*10**3
 # bandwidth = 10**3
 
-mode = 'scenario'
+
+# 設定模式
+# mode = 'scenario'
 # mode = 'analysis'
 # mode = 'interactive_1to1'
-mode = 'interactive_mulmul'
+# mode = 'interactive_mulmul'
 # mode = 'save'
 # mode = 'analysis_graph'
 mode = 'config_interactive'
@@ -426,84 +415,21 @@ mode = 'config_interactive'
 
 scenario = 2
 config_num = 0
-rot_max = 180#180
-gain = 1.14
+
+rot_max = 180 # polar plot yaw 極限
+gain = 1.14 # 多重路徑增益
 ma = 10
 
 
 
-if mode == 'draw_config':
 
-    pd_num = 10
-    led_num =10
-    config_num = 0
-    led_alpha = np.deg2rad(50)
-    pd_alpha = np.deg2rad(50)
-    led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num,led_alpha,pd_alpha)
-    fig = plt.figure(figsize=(12, 8))
-    ax = fig.add_subplot(1,3,1,projection='3d')
-    ax.set_box_aspect(aspect = (1,1,1))
-    ax.grid(False)
-    ax.set_xlim3d(-1,1)
-    ax.set_ylim3d(-1,1)
-    ax.set_zlim3d(-1,1)
-    ax.xaxis.set_ticklabels([])
-    ax.yaxis.set_ticklabels([])
-    ax.zaxis.set_ticklabels([])
-    ax.set_axis_off()
-
-
-    # ax.scatter(0,0,0,color='k',marker='x')
-
-    u, v = np.meshgrid(np.linspace(0,2*np.pi,100),np.linspace(0,np.pi,20))
-    x = 1*np.cos(u)*np.sin(v)
-    y = 1*np.sin(u)*np.sin(v)
-    z = 1*np.cos(v)
-    # sphere = ax.plot_wireframe(x+testp_pos[0,:], y+testp_pos[1,:], z+testp_pos[2,:], color="w",alpha=0.2, edgecolor="#808080")
-    ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-    a = np.linspace(-1,1,21)
-    b = np.linspace(-1,1,21)
-    A,B = np.meshgrid(a,b)
-    c = np.zeros((21,21))
-    ax.plot_surface(A,B,c, color="grey",alpha=0.2)
-
-    # a,b,c1 = ori_ang2cart(testp_rot[1:,:])
-
-    ax.quiver(0,0,0,0,0,1,color='k')
-    ax.quiver(0,0,0,1,0,0,color='k')
-    ax.quiver(0,0,0,0,1,0,color='k')
-
-    circle =  np.stack((led_alpha* np.ones((100)),\
-        (np.linspace(0,2*np.pi,100))))# 2 x filt x sample
-    circle_cart = ori_ang2cart(circle)
-    ax.plot(circle_cart[0,:],circle_cart[1,:],circle_cart[2,:],color='g',alpha=0.5)
-    ax.text(1.1,0,0,'x')
-    ax.text(0,1.1,0,'y')
-    ax.text(0,0,1.1,'z')
-
-    zeros = np.zeros(led_ori_car[0,:].shape)
-    ax.quiver(zeros,zeros,zeros,led_ori_car[0,:],led_ori_car[1,:],led_ori_car[2,:],color = 'g')
-    # ax.legend(loc='upper center', bbox_to_anchor=(0.5, 0.1))
-    plt.show()
-
-elif   mode =='scenario':
+if   mode =='scenario': # 呈現此情境的樣本點
     testp_pos,testp_rot = set_scenario(scenario)
-    # testp_pos = np.mgrid[-1.5:1.5:10j, -1.5:1.5:10j, 0:3:10j].reshape((3,-1)) # 3x?
-    # testp_rot = np.array([[np.pi,0,0],[0,np.pi,0]]).T
-    # testp_rot  = np.deg2rad(np.mgrid[0:0:1j, 10:60:6j, 36:360:10j].reshape((3,-1)))
-    # testp_rot = np.concatenate((testp_rot,np.array([[0,0,0]]).T ),axis=1)+np.array([[np.pi,0,0]]).T
-
     kpos = testp_pos.shape[1]
     krot = testp_rot.shape[1]
 
-    # solve_mulmul()
-    # count_kpos = np.nansum(error<tolerance,axis=1)/krot
-    # count_krot = np.nansum(error<tolerance,axis=0)/kpos
 
     fig = plt.figure(figsize=(12, 8))
-    # colormap= plt.cm.get_cmap('YlOrRd')
-    # normalize =  colors.Normalize(vmin=0, vmax=1)
 
     ax = fig.add_subplot(1,3,1,projection='3d')
     ax.set_box_aspect(aspect = (1,1,1))
@@ -1107,30 +1033,6 @@ elif mode =='interactive_mulmul':
         sliders[i].on_changed(sliders_on_changed)
     plt.show()
 
-elif mode == 'save':
-    testp_pos,testp_rot = set_scenario(scenario)
-    count = 0
-    # ans = np.zeros((14,14,5,5,5,5,2))
-    numl = np.array([3,5,8,10,15])
-    nump = np.array([3,5,8,10,15])
-    ml = np.array([1,1.5,2,3,5])
-    mp = np.array([1,1.5,2,3,5])
-    alphal = np.deg2rad(np.array([5,10,15,30,50]))
-    alphap = np.deg2rad(np.array([5,10,15,30,50]))
-    
-    
-    for led_num in numl:
-        for pd_num in nump:
-            for led_m in ml:
-                for pd_m in mp:
-                    for led_alpha in alphal:
-                        for pd_alpha in alphap:
-                            led_ori_ang,led_ori_car,pd_ori_ang,pd_ori_car = set_config(config_num, led_alpha, pd_alpha)
-                            
-                            solve_mulmul()
-                            error = error.filled(np.nan)
-                            
-                            np.save(f'./data_new/{led_num} {pd_num} {led_m} {pd_m} {np.round(np.rad2deg(led_alpha))} {np.round(np.rad2deg(pd_alpha))}.npy',error)
     
 elif mode == 'analysis_graph':
         # initiate

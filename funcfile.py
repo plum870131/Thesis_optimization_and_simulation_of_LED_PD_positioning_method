@@ -7,14 +7,6 @@ sympy.init_printing()
 
 # -------------------------- function def ------------------------------------
 
-'''形式轉換'''
-# 把一維向量變成3x1(垂直)的向量
-def form(list1): #list = [a,b,c]
-    list2 = np.array(list1)
-    if len(list2.shape)==1:# 一維矩陣
-        return np.transpose(np.array([list1]))
-    elif len(list2.shape)==2: # ?x3的進來轉一圈  
-        return np.transpose(np.array(list1))
 
 '''座標轉換 matrix '''
 def ori_ang2cart(ori_ang):#ori_ang = 2xsensor_num np.array, 第一列傾角 第二列方位
@@ -143,67 +135,17 @@ def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,p
     out_ang = np.arccos(np.divide(out_ang,dis))
     
     return dis,in_ang,out_ang
+
+
+
+
 '''
-def cal_d_in_out(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car,krot,kpos,led_num,pd_num):
-    #glob_led_pos [krot kpos 3 led_num]
-    #glob_led_ori [krot kpos 3 led_num]
-    dis = np.zeros((krot,kpos,led_num,pd_num))
-    in_ang = np.zeros((krot,kpos,led_num,pd_num))
-    out_ang = np.zeros((krot,kpos,led_num,pd_num))
-
-    pos_delta = np.zeros((krot,kpos,led_num,pd_num,3)) #led-pd: pd pointint to led
-
-    for pd in range(pd_num):
-        for led in range(led_num):
-            # (x-x)^2 sqrt
-            # glob_led_pos[:,:,:,led]  krotxkposx3
-            pd_extend = np.tile(pd_pos,(krot,kpos,1,1))
-            pos_delta[:,:,led,pd,:] = glob_led_pos[:,:,:,led]-pd_extend[:,:,:,pd]#krotxkposx3
-            dis[:,:,led,pd] = np.sqrt(np.square(pos_delta[:,:,led,pd,:]).sum(axis=2))
-            # in_ang[:,:,led,pd]= 
-
-    for pd in range(pd_num):
-        # 計算該pd與all testpoints的角度
-        in_ang[:,:,:,pd] = pos_delta[:,:,:,pd,0]*pd_ori_car[0,pd]+pos_delta[:,:,:,pd,1]*pd_ori_car[1,pd]+pos_delta[:,:,:,pd,2]*pd_ori_car[2,pd]
-
-        # krot kpos led pd  #glob_led_ori(krot,3,led_num) 
-        # out_ang[:,:,:,pd] = -pos_delta[:,:,:,pd,0]* glob_led_ori[,0,] - pos_delta[:,:,:,pd,1]*   -pos_delta[:,:,:,pd,2]*
-    for led in range(led_num):
-        for r in range(krot):
-            out_ang[r,:,led,:] = -pos_delta[r,:,led,:,0]*glob_led_ori[r,0,led] - pos_delta[r,:,led,:,1]*glob_led_ori[r,1,led] - pos_delta[r,:,led,:,2]*glob_led_ori[r,2,led]
-    in_ang = np.arccos(np.divide(in_ang,dis))
-    out_ang = np.arccos(np.divide(out_ang,dis))
-    
-    return dis,in_ang,out_ang
-'''
-'''計算strength'''
-def cal_strength_current(dis,in_ang,out_ang,led_para,pd_para):
-    # pd_para[0:M, 1:area, 2:respons] led_para[0:m, 1:optical power]
-    # dis,in_ang,out_ang   [krot x kpos x led x pd]
-    # strength [krot x kpos x led x pd]
-    # strength = np.zeros((krot,kpos,led_num,pd_num))
-    pd_m, area, respon = pd_para
-    led_m , power= led_para
-    k = respon*power*(led_m+1)*area /(2*np.pi)
-    
-    return k*np.divide( np.multiply(\
-                            np.power(   np.multiply(np.cos(in_ang)>0,np.cos(in_ang))    ,pd_m),\
-                            np.power(   np.multiply(np.cos(out_ang)>0,np.cos(out_ang))   ,led_m)),\
-                        np.square(dis))
-
-'''add noise'''
-#return一個跟strength大小一樣的bias vector
-def bias(strength,bias_val): # strength[(krot, kpos, led_num, pd_num)] bias:int
-    return bias_val*np.ones(strength.shape)
-
-
-
-
-
 def lamb_order(semi): #semi power angle in degree
     return -1*np.log(2)/np.log(np.cos(np.deg2rad(semi)))
 # print(lamb_order(28))
+'''
 
+'''
 def cal_ori(light_f,obs_m,obs_num,obs_ori):
     pd_num = obs_num
     pd_m = obs_m
@@ -285,11 +227,11 @@ def ang_from_ori(a_ang,b_ang):#[2xa] [2xb]
     #     np.multiply(np.cos(a_angg[:,:,0]), np.cos(b_angg[:,:,0]))  )
     # print(out.shape,'out')
     return out #[axb]
-
+'''
 # def ang_btw(a1,b1,a2,b2): #alpha1,beta1,alpha2,beta2
 #     a1,b1,a2,b2 = np.deg2rad(np.array([a1,b1,a2,b2]))
 #     return np.arccos(np.sin(a1)*np.sin(a2)*np.cos(b1-b2)+np.cos(a1)*np.cos(a2))
-
+'''
 def stereo_sph2pol(ori):#ori[2x?]
     new = np.zeros(ori.shape)
     new[0,:] = np.divide(np.sin(ori[0,:]), 1+np.cos(ori[0,:]) )
@@ -340,11 +282,13 @@ def rodrigue_mulmul(k_vec,ang): #k:[sample,3] ang[sample,]
         + np.multiply(np.sin(ang).reshape(-1,1,1),K) \
         + np.multiply((1-np.cos(ang)).reshape(-1,1,1),(np.matmul(K,K))) #angx3x3
     return R #samplex3x3
-
+'''
 def cart2sph(cart_v):#3x?
     cart = np.divide(cart_v, np.sqrt(np.sum(np.square(cart_v),axis=0).reshape((1,-1))))
     return np.array([   np.arccos(cart[2,:])   ,  np.arctan(np.divide(cart[1,:],cart[0,:]))- (cart[0,:]<0)*(np.pi)  ])# np.divide( np.arctan(cart[1,:]), cart[0,:]) - (cart[0,:]<0)*(np.pi)   ])#2x?
 
+
+'''
 def rotate_y_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
     rot = np.zeros((ang.size,3,3))
     rot[:,0,0] = np.cos(ang)
@@ -365,7 +309,7 @@ def rotate_z_mul(ang): #mat[被旋轉的矩陣](3*n個點)，ang[rad] list 1x?
     #rot = np.array([[np.cos(ang),-np.sin(ang),0],[np.sin(ang),np.cos(ang),0],[0,0,1]])
     # print(rot)
     return rot #是一個matrix
-
+'''
 
 def interactive_btw_pdled(glob_led_pos,glob_led_ori,pd_pos,pd_ori_car):
     (kpos,krot,led_num,_) = glob_led_pos.shape
@@ -388,8 +332,12 @@ def filter_view_angle(mat,ang):
     mat_view[mat_view >= ang] = np.nan
     return mat_view
 
+
+
+# 計算平面法向量
 def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_car,pd_ori_car):
 # print('Led, Pd usable amount: ',ledu,pdu)
+    # 光最強的那個當reference
     ref1_led = np.nanargmax(light_led, axis = 3) #kp,kr,ledu,
     ref1_pd = np.nanargmax(light_pd, axis = 2) #kp,kr,pdu,
 
@@ -406,28 +354,26 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
         ref1_pd.flatten(),
         np.tile(np.arange(pd_num),kpos*krot),\
         ] = True #kp,kr,led, pdu
+    
+    # data_ref: ref1數據
+    # data_other: 除了ref1的數據
     led_data_ref = light_led.copy()
     led_data_ref .mask = (light_led .mask | ~maskled)
     led_data_ref = np.sort(led_data_ref,axis=3)[:,:,:,0].reshape(kpos,krot,led_num,1)
     led_data_other = light_led.copy()
     led_data_other.mask = (light_led.mask | maskled)
     
-    # led_data_ref = light_led[maskled].reshape(kpos,krot,-1,1)#kp kr ledu 1
-    #led_data_other = light_led[~maskled].reshape(ledu,-1)# ledu other
     pd_data_ref = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
     pd_data_ref.mask = (light_pd.mask | ~maskpd)
     pd_data_ref = np.sort(pd_data_ref,axis=2)[:,:,0,:].reshape(kpos,krot,1,pd_num)
     pd_data_other = light_pd.copy()#light_pd[maskpd].reshape(1,-1)#1 pdu
     pd_data_other.mask = (light_pd .mask | maskpd)
-    # =============================================================================
-    # print(light_pd,'-----------')
-    # print(maskpd)
-    # =============================================================================
-    #pd_data_other = light_pd[~maskpd].reshape(led_num-1,-1) #other, pdu
-    # ref/other
-    #ratio_led = np.power(np.ma.divide(led_data_ref, led_data_other),1/pd_m) #led_u x other
+
+
+
+
+    # 取ratio: ref/other
     ratio_led = np.power(np.divide(led_data_ref, led_data_other),1/pd_m)
-    # print(ratio_led,'ratio')
     ratio_pd = np.power(np.divide(pd_data_ref, pd_data_other),1/led_m) #other, pdu
     # in_ang  krot,kpos,led_num,pd_num
     
@@ -436,36 +382,38 @@ def get_surface(light_led,light_pd,led_num,pd_num,kpos,krot,led_m,pd_m,led_ori_c
     # =============================================================================
     # 計算平面normal vector[ledu other 3]
     # =============================================================================
+    # 將硬體指向根據ref與other分類
     #kpos x krot x ledu x other x 3
     conf_led = np.tile(pd_ori_car.T,(kpos,krot,led_num,1,1))
     # print(conf_led,'conf')
     conf_led_ref = np.sort( (np.ma.masked_array(conf_led,np.tile((light_led.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
-    
-    # print((np.ma.masked_array(conf_led,np.tile((light_pd.mask | ~maskled),(3,1,1,1,1)).transpose(1,2,3,4,0))),'here')
-    # print(conf_led_ref,'conf')
     conf_led_other = np.ma.masked_array(conf_led,np.tile(led_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
     # print(conf_led_other,'other')
+    
+    # 計算normal vector
     nor_led = conf_led_ref - np.multiply(ratio_led.reshape(kpos,krot,led_num,-1,1),conf_led_other)
 
+    # 將硬體指向根據ref與other分類
     # kp kr l p 3
     conf_pd = np.tile(led_ori_car,(kpos,krot,pd_num,1,1)).transpose(0,1,4,2,3) # kp kr l p
     # kp kr 1 p 3
     conf_pd_ref = np.sort( (np.ma.masked_array(conf_pd,np.tile((light_pd.mask | ~maskpd),(3,1,1,1,1)).transpose(1,2,3,4,0))),axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
     # kp kr l p 3
     conf_pd_other = np.ma.masked_array(conf_pd,np.tile(pd_data_other.mask,(3,1,1,1,1)).transpose(1,2,3,4,0))
+   
+    # 計算normal vector
     # kp kr l p
     nor_pd = conf_pd_ref - np.multiply(ratio_pd.reshape(kpos,krot,led_num,-1,1),conf_pd_other)
-    # print(conf_pd_ref,'conf')
-    # print(conf_pd_other,'conf')
     return nor_led,nor_pd,conf_led_ref,conf_pd_ref,led_data_other,pd_data_other
 
 
 def get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpos,krot,nor_led,nor_pd,conf_led_ref,conf_pd_ref):
     # =============================================================================
-    # 取led_data_other強度最大者作為ref2_led，當cross的基準
+    # 取led_data_other強度最大者作為ref2_led，當cross的基準(也就是全部裡面第二大)
     # 並利用maskled2將data other分兩半
     # => 計算cross
     # =============================================================================
+    
     ref2_led = np.nanargmax(led_data_other, axis = 3)
     ref2_pd = np.nanargmax(pd_data_other, axis = 2) #pdu,
     
@@ -484,24 +432,19 @@ def get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpo
         np.tile(np.arange(pd_num),kpos*krot),\
         ] = True #kp,kr,led, pdu
     
-    # 將normal vector分兩半
-    
+    # 將normal vector根據ref2與other分兩半
     nor_led_ref = nor_led.copy()
     nor_led_ref.mask = np.tile((light_led.mask| ~maskled2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
     nor_led_ref = np.sort(nor_led_ref,axis=3)[:,:,:,0,:].reshape(kpos,krot,led_num,1,3)
     nor_led_other = nor_led.copy()
     nor_led_other.mask = (nor_led.mask|np.tile(maskled2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
     
-    
     nor_pd_ref = nor_pd.copy()
     nor_pd_ref.mask = np.tile((light_pd.mask| ~maskpd2) ,(3,1,1,1,1)).transpose(1,2,3,4,0)#light_led True遮掉unusable, ~maskled2 True是除了ref2以外的 遮掉不是ref2的
     nor_pd_ref = np.sort(nor_pd_ref,axis=2)[:,:,0,:,:].reshape(kpos,krot,1,-1,3)
     nor_pd_other = nor_pd.copy()
     nor_pd_other.mask = (nor_pd.mask|np.tile(maskpd2,(3,1,1,1,1)).transpose(1,2,3,4,0))#nor_led True遮掉unusable、ref1, maskled2 True遮掉ref2的
-    # print(nor_pd_other)
-    # nor_pd_ref = nor_pd[maskpd2].reshape(1,-1,3) #1,pdu,3
-    # nor_pd_other = nor_pd[~maskpd2].reshape(-1,pdu,3) #led-2,pdu,3
-    
+  
     # =============================================================================
     # # 計算各平面交軸：cross vector
     # =============================================================================
@@ -512,8 +455,9 @@ def get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpo
     cross_led_mask = np.sum(np.multiply(conf_led_ref, cross_led),axis=4)<0 ## kp kr l p
     cross_led = np.ma.masked_array(np.where(np.tile(cross_led_mask,(3,1,1,1,1)).transpose(1,2,3,4,0),-cross_led,cross_led),\
                                    nor_led_other.mask)
+
 # =============================================================================
-#     # 驗算cross
+#     # 驗算cross led
 #     check_cross_led = np.sum(np.multiply(cross_led,(np.tile( \
 #                                                             np.divide(testp_pos,\
 #                                                                       np.tile(np.sqrt(np.sum(np.square(testp_pos),axis=0)),(1,1))\
@@ -523,9 +467,7 @@ def get_cross(led_data_other,pd_data_other,light_led,light_pd,led_num,pd_num,kpo
 #     check_cross_led = np.isclose(np.ma.masked_invalid(check_cross_led),np.ones(check_cross_led.shape))
 #     check_cross_led_sum = np.sum(~check_cross_led)
 # =============================================================================
-    # cross_led_av = np.nanmean(cross_led,(2,3)) #kp kr 3
-    
-    # cross_led_av = 
+
     
     # kp kr l p 3
     cross_pd = np.ma.masked_array(np.cross(np.tile(nor_pd_ref,(1,1,led_num,1,1)),nor_pd_other)\

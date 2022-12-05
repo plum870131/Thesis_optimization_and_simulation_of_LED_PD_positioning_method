@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sympy
@@ -9,128 +12,133 @@ sympy.init_printing()
 
 from funcfile import *
 
-from geneticalgorithm import geneticalgorithm as ga
+# from geneticalgorithm import geneticalgorithm as ga
 # plt.rcParams['font.sans-serif'] = ['Source Han Sans TW', 'sans-serif']
+plt.rcParams['font.sans-serif'] = ['Arial Unicode MS']
+plt.rcParams['axes.unicode_minus'] = False 
+
+
+# led_num = 10
+# pd_num = 10
+# out = '1.59635534 3.64659549 0.33866975 0.00962708 0.10512115 2.36928225\
+#   0.01985999 3.09494779 0.21011412 2.79623198 0.30071889 2.41888534\
+#   0.55043657 2.4528098  4.59372575 0.33147949 1.73930968 0.22639113\
+#   3.21930293 0.81341371 5.2607883  1.85458207 0.05406089 0.57445071\
+#   1.83451829 0.03682501 2.55868568 0.17909927 1.70097813 0.13315306\
+#   2.024396   0.7498849  0.84769257 1.66959346 5.54648204 0.47771415\
+#   5.58602008 3.80653029 3.01512575 2.98516385 0.54550955 4.55192033'
+# X = out.split()
+# X = np.array(X, dtype=np.float32)
+# # print(X.shape)
+# led_m = X[0]
+# pd_m = X[1]
+# pd_config = np.stack((X[2:2+led_num],X[2+led_num:2+2*led_num]))
+# led_config = np.stack((X[2+2*led_num:2+2*led_num+pd_num],X[2+2*led_num+pd_num:2+2*led_num+2*pd_num]))
+# print(pd_config.shape)
+
+
+# # led_config =np.stack((  np.array([0.21473079, 2.40400875, 1.34644435, 0.22016245,0.33976713]), np.array([2.64807832, 2.45939339, 2.94233641, 4.74591118, 1.77008613])))         
+# # pd_config = np.stack((np.array([0.35709663, 0.45533932, 0.88859295, 0.27061169, 1.89314697]),np.array([2.70758594,4.48369105, 3.14887709, 3.92191011, 3.68513225]))) 
+# led_x = np.multiply(np.cos(led_config[1,:]),np.sin(led_config[0,:]))
+# led_y = np.multiply(np.sin(led_config[1,:]),np.sin(led_config[0,:]))
+# led_z = np.cos(led_config[0,:])
+# pd_x = np.multiply(np.cos(pd_config[1,:]),np.sin(pd_config[0,:]))
+# pd_y = np.multiply(np.sin(pd_config[1,:]),np.sin(pd_config[0,:]))
+# pd_z = np.cos(pd_config[0,:])
+# zero = np.zeros(led_z.size)
 
 
 
-led_num = 10
-pd_num = 10
-out = '1.59635534 3.64659549 0.33866975 0.00962708 0.10512115 2.36928225\
-  0.01985999 3.09494779 0.21011412 2.79623198 0.30071889 2.41888534\
-  0.55043657 2.4528098  4.59372575 0.33147949 1.73930968 0.22639113\
-  3.21930293 0.81341371 5.2607883  1.85458207 0.05406089 0.57445071\
-  1.83451829 0.03682501 2.55868568 0.17909927 1.70097813 0.13315306\
-  2.024396   0.7498849  0.84769257 1.66959346 5.54648204 0.47771415\
-  5.58602008 3.80653029 3.01512575 2.98516385 0.54550955 4.55192033'
-X = out.split()
-X = np.array(X, dtype=np.float32)
-# print(X.shape)
-led_m = X[0]
-pd_m = X[1]
-pd_config = np.stack((X[2:2+led_num],X[2+led_num:2+2*led_num]))
-led_config = np.stack((X[2+2*led_num:2+2*led_num+pd_num],X[2+2*led_num+pd_num:2+2*led_num+2*pd_num]))
-print(pd_config.shape)
 
-
-# led_config =np.stack((  np.array([0.21473079, 2.40400875, 1.34644435, 0.22016245,0.33976713]), np.array([2.64807832, 2.45939339, 2.94233641, 4.74591118, 1.77008613])))         
-# pd_config = np.stack((np.array([0.35709663, 0.45533932, 0.88859295, 0.27061169, 1.89314697]),np.array([2.70758594,4.48369105, 3.14887709, 3.92191011, 3.68513225]))) 
-led_x = np.multiply(np.cos(led_config[1,:]),np.sin(led_config[0,:]))
-led_y = np.multiply(np.sin(led_config[1,:]),np.sin(led_config[0,:]))
-led_z = np.cos(led_config[0,:])
-pd_x = np.multiply(np.cos(pd_config[1,:]),np.sin(pd_config[0,:]))
-pd_y = np.multiply(np.sin(pd_config[1,:]),np.sin(pd_config[0,:]))
-pd_z = np.cos(pd_config[0,:])
-zero = np.zeros(led_z.size)
-
-
-
-
-fig = plt.figure(figsize=(12, 8))
-
-ax = fig.add_subplot(211,projection='3d')
-ax.set_box_aspect(aspect = (1,1,1))
-ax.title.set_text('LED Configuration')
-ax.quiver(zero,zero,zero,led_x,led_y,led_z)
-ax.set_xlim3d(-1,1)
-ax.set_ylim3d(-1,1)
-ax.set_zlim3d(-1,1)
-
-u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
-x = 1*np.cos(u)*np.sin(v)
-y = 1*np.sin(u)*np.sin(v)
-z = 1*np.cos(v)
-ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-ax.quiver(0,0,0,0,0,1,color='k')
-ax.quiver(0,0,0,0,1,0,color='k')
-ax.quiver(0,0,0,1,0,0,color='k')
-ax.xaxis.set_ticklabels([])
-ax.yaxis.set_ticklabels([])
-ax.zaxis.set_ticklabels([])
-ax.set_axis_off()
-
-
-
-ax = fig.add_subplot(212,projection='3d')
-ax.set_box_aspect(aspect = (1,1,1))
-ax.title.set_text('PD Configuration')
-ax.quiver(zero,zero,zero,pd_x,pd_y,pd_z)
-ax.set_xlim3d(-1,1)
-ax.set_ylim3d(-1,1)
-ax.set_zlim3d(-1,1)
-ax.quiver(0,0,0,0,0,1,color='k')
-ax.quiver(0,0,0,0,1,0,color='k')
-ax.quiver(0,0,0,1,0,0,color='k')
-
-u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
-x = 1*np.cos(u)*np.sin(v)
-y = 1*np.sin(u)*np.sin(v)
-z = 1*np.cos(v)
-ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
-
-ax.xaxis.set_ticklabels([])
-ax.yaxis.set_ticklabels([])
-ax.zaxis.set_ticklabels([])
-ax.set_axis_off()
-
-plt.show()
-# =============================================================================
-# lamb = [1,2,5,10,20]
 # fig = plt.figure(figsize=(12, 8))
-# ax = fig.add_subplot(221,projection = 'polar')
+
+# ax = fig.add_subplot(211,projection='3d')
+# ax.set_box_aspect(aspect = (1,1,1))
+# ax.title.set_text('LED Configuration')
+# ax.quiver(zero,zero,zero,led_x,led_y,led_z)
+# ax.set_xlim3d(-1,1)
+# ax.set_ylim3d(-1,1)
+# ax.set_zlim3d(-1,1)
+
+# u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+# x = 1*np.cos(u)*np.sin(v)
+# y = 1*np.sin(u)*np.sin(v)
+# z = 1*np.cos(v)
+# ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+# ax.quiver(0,0,0,0,0,1,color='k')
+# ax.quiver(0,0,0,0,1,0,color='k')
+# ax.quiver(0,0,0,1,0,0,color='k')
+# ax.xaxis.set_ticklabels([])
+# ax.yaxis.set_ticklabels([])
+# ax.zaxis.set_ticklabels([])
+# ax.set_axis_off()
+
+
+
+# ax = fig.add_subplot(212,projection='3d')
+# ax.set_box_aspect(aspect = (1,1,1))
+# ax.title.set_text('PD Configuration')
+# ax.quiver(zero,zero,zero,pd_x,pd_y,pd_z)
+# ax.set_xlim3d(-1,1)
+# ax.set_ylim3d(-1,1)
+# ax.set_zlim3d(-1,1)
+# ax.quiver(0,0,0,0,0,1,color='k')
+# ax.quiver(0,0,0,0,1,0,color='k')
+# ax.quiver(0,0,0,1,0,0,color='k')
+
+# u, v = np.meshgrid(np.linspace(0,2*np.pi,20),np.linspace(0,np.pi,20))
+# x = 1*np.cos(u)*np.sin(v)
+# y = 1*np.sin(u)*np.sin(v)
+# z = 1*np.cos(v)
+# ax.plot_wireframe(x, y, z, color="w",alpha=0.2, edgecolor="#808080")
+
+# ax.xaxis.set_ticklabels([])
+# ax.yaxis.set_ticklabels([])
+# ax.zaxis.set_ticklabels([])
+# ax.set_axis_off()
+
+# plt.show()
+
+
+
+
+lamb = [1,2,5,10]#,20]
+legend = ['m=1','m=2','m=5','m=10','m=20']
+fig = plt.figure(figsize=(12, 8))
+ax = fig.add_subplot(221,projection = 'polar')
 # ax.title.set_text('輻射強度與入射角的關係')
 # ax.set_xlabel(r'$\omega$')
 # ax.set_ylabel(r'$\frac{I(\omega)}{I(\omega=0)}$')
-# ax.set_thetamin(-90)
-# ax.set_thetamax(90)
-# ax.set_theta_offset(.5*np.pi)
-# for i in lamb:
-#     theta = np.deg2rad(np.linspace(-90,90,200))
-#     # dis = np.linspace(3,5,20)
-#     # thetaa, diss = np.meshgrid(theta,dis)
-#     # leng = thetaa.shape
-#     I = np.power(np.cos((theta)),i)
-#     ax.plot(theta,I)
-# ax.legend(legend, loc=(.85,.65))
-# 
-# ax = fig.add_subplot(222,projection = 'polar')
-# ax.title.set_text('朗博次方影響入射模式')
-# ax.set_xlabel(r'$\omega$')
-# ax.set_ylabel(r'$I(\omega)$')
-# ax.set_thetamin(-90)
-# ax.set_thetamax(90)
-# ax.set_theta_offset(.5*np.pi)
-# for i in lamb:
-#     theta = np.deg2rad(np.linspace(-90,90,200))
-#     # dis = np.linspace(3,5,20)
-#     # thetaa, diss = np.meshgrid(theta,dis)
-#     # leng = thetaa.shape
-#     I = (i+1)/2/np.pi * np.power(np.cos((theta)),i)
-#     ax.plot(theta,I)
-# ax.legend(legend, loc=(.85,.65))
-# 
-# plt.show()
+ax.set_thetamin(-90)
+ax.set_thetamax(90)
+ax.set_theta_offset(.5*np.pi)
+for i in lamb:
+    theta = np.deg2rad(np.linspace(-90,90,200))
+    # dis = np.linspace(3,5,20)
+    # thetaa, diss = np.meshgrid(theta,dis)
+    # leng = thetaa.shape
+    I = np.power(np.cos((theta)),i)
+    ax.plot(theta,I)
+ax.legend(legend, loc=(.85,.65))
+
+ax = fig.add_subplot(222,projection = 'polar')
+ax.title.set_text('朗博次方影響入射模式')
+ax.set_xlabel(r'$\omega$')
+ax.set_ylabel(r'$I(\omega)$')
+ax.set_thetamin(-90)
+ax.set_thetamax(90)
+ax.set_theta_offset(.5*np.pi)
+for i in lamb:
+    theta = np.deg2rad(np.linspace(-90,90,200))
+    # dis = np.linspace(3,5,20)
+    # thetaa, diss = np.meshgrid(theta,dis)
+    # leng = thetaa.shape
+    I = (i+1)/2/np.pi * np.power(np.cos((theta)),i)
+    ax.plot(theta,I)
+ax.legend(legend, loc=(.85,.65))
+
+plt.show()
 # =============================================================================
 
 
